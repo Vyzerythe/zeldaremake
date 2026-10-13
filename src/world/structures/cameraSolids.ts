@@ -5,30 +5,43 @@
  * blocks the line of sight only where it meets a surface, the grown cells keep the camera off it):
  *  - SOLID: the shells the camera keeps Link in front of — house trunks, roofs, eaves, porches,
  *    root arches, door and window frames; the log arch's bark, ends, passage tube and cheeks; the
- *    huts' bark, caps and planks, the far hut's column; the grove's decks and bark column;
+ *    huts' bark, caps and planks, the far hut's column; the grove's decks and bark column; the
+ *    bridge keeper's mast, the waystation's walls;
  *  - SLIM: the parts it only refuses to stand inside — fence and lantern posts, the sign, the pods,
- *    the grove's rails, stilts and limbs,
+ *    the grove's rails, stilts and limbs, the keeper's railing, braces, davit, firewood and beacon
+ *    arm, the waystation's posts, bench and firewood, and its roof (0.3–0.5 m over Link's aim where
+ *    he stands on its floor: as a shell, a line out through it would pin the camera at its minimum
+ *    distance inside the roof; the back wall, higher than the level line, stops that line first),
  *    the buttress roots, the boughs, the plaza bough's sleeve and the bough itself (the trees
  *    system's limb path, as spheres). A slim part between Link and the camera is allowed to pass.
  * A hut whose wall comes as an exact solid (`walls`, the grove's) keeps its bark out of the grid.
+ * A SOLID part may carry `userData.cameraShell` (a vertical cylinder: world x, z, radius): its
+ * triangles wholly outside it are SLIM. The bridge keeper's eave hangs 1.7 m over its gallery,
+ * where Link's aim (1.43 m) sits inside the eave's grown cells; as a shell the camera would snap
+ * to its minimum distance on the walk. So its soffit, skirt and cap overhang are slim and only
+ * the wall and the dome over the room stay solid — and those not as cells either: grown by one,
+ * the 1.23 m wall reached 1.93 m from the axis on the diagonals, over the gallery (Link walks
+ * 1.30–1.99 m out), and stopped the camera at its minimum distance there. A shell marked `exact`
+ * leaves its inside to a wall published in `walls` (a cylinder round the wall and the dome); its
+ * outside stays slim.
  * Built for play only (never under a headless capture): ~0.1–0.3 s once at load.
  */
-import { Box3, type BufferGeometry, InstancedMesh, Matrix4, type Mesh, type Object3D, Vector3 } from 'three';
+import { Box3, BufferGeometry, Float32BufferAttribute, InstancedMesh, Matrix4, type Mesh, type Object3D, Vector3 } from 'three';
 import type { CameraWall, TubePath } from '../system';
 import { VoxelGrid, worldBounds } from '../util/voxelGrid';
 
 export const CAMERA_SOLID_CELL = 0.25;
 
-const SOLID = /^(trunk|trunk-eave-band|porch|roof|roof-straw|roof-eave|roof-eave-bark|roots-arch|door-frame|window-frame|window-socket|log-bark|log-ends|log-tunnel|log-tunnel-cheeks|log-bark-plates|far-hut-column|grove-deck|grove-column)$|^distant-house-(bark|cap|cap-skirt|planks):/;
-const SLIM = /^(roots|support-boughs|roof-branches|signpost-wood|lantern-post|lantern-peg|lantern-hanger|pod-lantern|lantern-branch-bark|fence-.+|distant-house-ladder:.+|grove-rails|grove-frame)$/;
+const SOLID = /^(trunk|trunk-eave-band|porch|roof|roof-straw|roof-eave|roof-eave-bark|roots-arch|door-frame|window-frame|window-socket|log-bark|log-ends|log-tunnel|log-tunnel-cheeks|log-bark-plates|far-hut-column|grove-deck|grove-column|keeper-mast|waystation-walls(-ends)?)$|^distant-house-(bark|cap|cap-skirt|planks):/;
+const SLIM = /^(roots|support-boughs|roof-branches|signpost-wood|lantern-post|lantern-peg|lantern-hanger|pod-lantern|pod-lantern-static|lantern-branch-bark|fence-.+|distant-house-ladder:.+|grove-rails|grove-frame|keeper-(beacon|braces|davit|firewood|rail|rail-posts)(-ends)?|waystation-(bench|firewood|posts|roof)(-ends)?)$/;
 const NOT_SLIM = /-(rope|foot-moss)$/;
 
 export interface CameraSolids {
   solid: VoxelGrid | null;
   slim: VoxelGrid | null;
   walls: CameraWall[];
-  /** part names per class and the build time (audit) */
-  report: { solidParts: Record<string, number>; slimParts: Record<string, number>; walls: string[]; ms: number; solidCells: number; slimCells: number; bytes: number };
+  /** part names per class (`exactParts`: solid parts whose inside is a published wall) and the build time (audit) */
+  report: { solidParts: Record<string, number>; slimParts: Record<string, number>; exactParts: Record<string, number>; walls: string[]; ms: number; solidCells: number; slimCells: number; bytes: number };
 }
 
 interface Part {
@@ -37,9 +50,40 @@ interface Part {
   name: string;
 }
 
-function collect(roots: Object3D[], exact: Set<string>): { solid: Part[]; slim: Part[] } {
+interface Shell {
+  x: number;
+  z: number;
+  r: number;
+  /** the inside is a published exact wall (`walls`), not voxelised */
+  exact?: boolean;
+}
+
+const _tri = [new Vector3(), new Vector3(), new Vector3()];
+
+/** a part's triangles in world space: those wholly outside the shell's cylinder (`outside`), the rest (`inside`) */
+function splitShell(geometry: BufferGeometry, matrix: Matrix4, shell: Shell): { inside: BufferGeometry; outside: BufferGeometry } {
+  const pos = geometry.attributes.position;
+  const idx = geometry.index;
+  const n = idx ? idx.count : pos.count;
+  const inside: number[] = [];
+  const outside: number[] = [];
+  for (let t = 0; t + 2 < n; t += 3) {
+    let out = true;
+    for (let k = 0; k < 3; k++) {
+      const p = _tri[k].fromBufferAttribute(pos, idx ? idx.getX(t + k) : t + k).applyMatrix4(matrix);
+      if ((p.x - shell.x) ** 2 + (p.z - shell.z) ** 2 <= shell.r * shell.r) out = false;
+    }
+    const dst = out ? outside : inside;
+    for (const p of _tri) dst.push(p.x, p.y, p.z);
+  }
+  const geo = (a: number[]) => new BufferGeometry().setAttribute('position', new Float32BufferAttribute(a, 3));
+  return { inside: geo(inside), outside: geo(outside) };
+}
+
+function collect(roots: Object3D[], exact: Set<string>): { solid: Part[]; slim: Part[]; exactParts: Part[] } {
   const solid: Part[] = [];
   const slim: Part[] = [];
+  const exactParts: Part[] = [];
   const inst = new Matrix4();
   for (const root of roots) {
     root.updateMatrixWorld(true);
@@ -48,6 +92,13 @@ function collect(roots: Object3D[], exact: Set<string>): { solid: Part[]; slim: 
       if (!m.isMesh || !m.geometry?.attributes?.position || exact.has(m.name)) return;
       const cls = SOLID.test(m.name) ? solid : SLIM.test(m.name) && !NOT_SLIM.test(m.name) ? slim : null;
       if (!cls) return;
+      const shell = m.userData.cameraShell as Shell | undefined;
+      if (shell && cls === solid && !(m instanceof InstancedMesh)) {
+        const { inside, outside } = splitShell(m.geometry, m.matrixWorld, shell);
+        if (inside.attributes.position.count) (shell.exact ? exactParts : solid).push({ geometry: inside, matrix: new Matrix4(), name: m.name });
+        if (outside.attributes.position.count) slim.push({ geometry: outside, matrix: new Matrix4(), name: m.name });
+        return;
+      }
       if (m instanceof InstancedMesh) {
         for (let i = 0; i < m.count; i++) {
           m.getMatrixAt(i, inst);
@@ -56,7 +107,7 @@ function collect(roots: Object3D[], exact: Set<string>): { solid: Part[]; slim: 
       } else cls.push({ geometry: m.geometry, matrix: m.matrixWorld.clone(), name: m.name });
     });
   }
-  return { solid, slim };
+  return { solid, slim, exactParts };
 }
 
 function tally(parts: Part[]): Record<string, number> {
@@ -98,7 +149,7 @@ export function limbSpheres(limb: TubePath | undefined): { x: number; y: number;
 
 export function buildCameraSolids(roots: Object3D[], slimSpheres: { x: number; y: number; z: number; r: number }[] = [], walls: CameraWall[] = []): CameraSolids {
   const t0 = performance.now();
-  const { solid, slim } = collect(roots, new Set(walls.map((w) => `distant-house-bark:${w.id}`)));
+  const { solid, slim, exactParts } = collect(roots, new Set(walls.map((w) => `distant-house-bark:${w.id}`)));
   const solidGrid = voxelise(solid, [], true);
   const slimGrid = voxelise(slim, slimSpheres);
   const ms = performance.now() - t0;
@@ -109,6 +160,7 @@ export function buildCameraSolids(roots: Object3D[], slimSpheres: { x: number; y
     report: {
       solidParts: tally(solid),
       slimParts: tally(slim),
+      exactParts: tally(exactParts),
       walls: walls.map((w) => w.id),
       ms: Math.round(ms),
       solidCells: solidGrid?.count() ?? 0,

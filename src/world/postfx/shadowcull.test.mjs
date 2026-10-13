@@ -2,7 +2,8 @@
 // A caster is switched off only when its bounding sphere, swept from it along the light, can never
 // enter the camera frustum; the sweep direction matters (a caster beside the frustum on the sun's
 // side casts INTO it), the margin inflates the sphere, spheres/frustumCulled-off objects are left
-// alone, and the restore puts every flag back.
+// alone (a self-culling BatchedMesh meets the distance rules only), and the restore puts every flag
+// back.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import ts from 'typescript';
@@ -22,7 +23,7 @@ new Function(
   module,
   module.exports,
 );
-const { sweptSphereMissesFrustum, cullShadowCasters } = module.exports;
+const { sweptSphereMissesFrustum, cullShadowCasters, hideSmallFar } = module.exports;
 
 // a camera at the origin looking down −z, 60° fov, 1:1; the sun 45° up in +x (light travels toward −x, −y)
 const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 100);
@@ -106,6 +107,243 @@ const frustum = new THREE.Frustum().setFromProjectionMatrix(new THREE.Matrix4().
   assert.equal(behind.castShadow, true, 'a caster behind the camera under a light travelling into view is kept');
   assert.equal(downLight.castShadow, true, 'a sideways caster under a light travelling along the view axis is kept: the frustum widens with depth');
   restore2();
+}
+
+{
+  // the optional distance rule: a small caster beyond the distance is switched off even in view; a big
+  // one, or a small one nearer, is not; the stats count the rule's share; without a rule nothing changes
+  const scene = new THREE.Scene();
+  const mk = (z, size) => {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(size, size, size), new THREE.MeshBasicMaterial());
+    m.position.set(0, 0, z);
+    m.castShadow = true;
+    scene.add(m);
+    return m;
+  };
+  const r1 = Math.sqrt(3) / 2;
+  const nearSmall = mk(-10, 1);
+  const farSmall = mk(-40, 1);
+  const farBig = mk(-40, 4);
+  const justBeyond = mk(-(25 + r1 + 0.05), 1);
+  const justShort = mk(-(25 + r1 - 0.05), 1);
+  scene.updateMatrixWorld(true);
+  const rule = { maxRadiusM: 1.5, minDistanceM: 25 };
+  const stats = { tested: 0, culled: 0 };
+  const restore = cullShadowCasters(scene, camera, sunDirection, 1.0, stats, [rule]);
+  assert.equal(nearSmall.castShadow, true, 'a small caster 9 m off keeps casting');
+  assert.equal(farSmall.castShadow, false, 'a small caster 39 m off is switched off');
+  assert.equal(farBig.castShadow, true, 'a caster over the radius keeps casting at any distance');
+  assert.equal(justBeyond.castShadow, false, 'the distance is measured to the sphere, not its centre');
+  assert.equal(justShort.castShadow, true);
+  assert.equal(stats.tested, 5);
+  assert.equal(stats.culled, 2);
+  assert.equal(stats.far, 2);
+  restore();
+  for (const m of [nearSmall, farSmall, farBig, justBeyond, justShort]) assert.equal(m.castShadow, true, 'restored');
+  cullShadowCasters(scene, camera, sunDirection, 1.0, stats)();
+  assert.equal(stats.culled, 0, 'no rule: every caster here is in view and keeps casting');
+  assert.equal(stats.far, 0);
+}
+
+{
+  // the box rule: any caster whose sphere lies wholly more than the distance outside the box in plan
+  // is switched off, however big, and the same ones wherever the camera stands; one whose sphere
+  // reaches within the distance, or stands over the box, keeps casting; rules combine with `some`
+  const scene = new THREE.Scene();
+  const mk = (x, z, size) => {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(size, size, size), new THREE.MeshBasicMaterial());
+    m.position.set(x, 0, z);
+    m.castShadow = true;
+    scene.add(m);
+    return m;
+  };
+  const box = { x0: -5, x1: 5, z0: -10, z1: 0 };
+  const r20 = (Math.sqrt(3) / 2) * 20;
+  const bigFar = mk(0, -10 - 20 - r20 - 0.5, 20);
+  const bigReaching = mk(0, -10 - 20 - r20 + 0.5, 20);
+  const beside = mk(5 + 20 + 0.9, -5, 1);
+  const overBox = mk(0, -5, 1);
+  const smallFar = mk(-2, -60, 1);
+  scene.updateMatrixWorld(true);
+  const reach = { box, minDistanceM: 20 };
+  const stats = { tested: 0, culled: 0 };
+  const restore = cullShadowCasters(scene, camera, sunDirection, 1.0, stats, [reach]);
+  assert.equal(bigFar.castShadow, false, 'a 35 m sphere wholly 20.5 m outside the box is switched off');
+  assert.equal(bigReaching.castShadow, true, 'the same sphere reaching 19.5 m from the box keeps casting');
+  assert.equal(beside.castShadow, false, 'the plan distance counts across x as well');
+  assert.equal(overBox.castShadow, true, 'a caster over the box keeps casting');
+  assert.equal(smallFar.castShadow, false);
+  assert.equal(stats.far, 3);
+  restore();
+  const moved = camera.clone();
+  moved.position.set(3, 1, -8);
+  moved.updateMatrixWorld(true);
+  const restoreMoved = cullShadowCasters(scene, moved, sunDirection, 1.0, stats, [reach]);
+  assert.equal(bigFar.castShadow, false, 'from elsewhere in the box: the same caster is off');
+  assert.equal(bigReaching.castShadow, true);
+  restoreMoved();
+  const both = cullShadowCasters(scene, camera, sunDirection, 1.0, stats, [{ maxRadiusM: 1.5, minDistanceM: 4 }, reach]);
+  assert.equal(overBox.castShadow, false, 'the size rule still applies alongside: the caster over the box is small and 4.1 m off');
+  assert.equal(bigReaching.castShadow, true);
+  both();
+  for (const m of [bigFar, bigReaching, beside, overBox, smallFar]) assert.equal(m.castShadow, true, 'restored');
+}
+
+{
+  // an instanced batch is judged by its whole batch's sphere: small pieces spread over metres keep
+  // casting at any distance (strata and prop batches are not the rule's to thin out)
+  const scene = new THREE.Scene();
+  const m = new THREE.InstancedMesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), new THREE.MeshBasicMaterial(), 5);
+  for (let i = 0; i < 5; i++) m.setMatrixAt(i, new THREE.Matrix4().makeTranslation((i - 2) * 3, 0, -40 - i * 2));
+  m.castShadow = true;
+  scene.add(m);
+  scene.updateMatrixWorld(true);
+  const stats = { tested: 0, culled: 0 };
+  const restore = cullShadowCasters(scene, camera, sunDirection, 1.0, stats, [{ maxRadiusM: 1.5, minDistanceM: 25 }]);
+  assert.ok(m.boundingSphere.radius > 1.5, 'the batch sphere spans the pieces');
+  assert.equal(m.castShadow, true, 'a spread batch of small far pieces keeps casting');
+  assert.equal(stats.far, 0);
+  restore();
+}
+
+{
+  // a BatchedMesh that culls its own instances (frustumCulled off, like the trees' far-foliage
+  // batches) meets the distance rules on its whole batch's sphere and never the sweep: wholly beyond
+  // the box it is off, reaching within the distance it keeps casting even behind the camera, where a
+  // plain mesh is swept away; without rules it is left alone, and other frustumCulled-off casters
+  // are left alone under rules too
+  const scene = new THREE.Scene();
+  const geo = new THREE.BoxGeometry(2, 2, 2);
+  const mkBatch = (x, z) => {
+    const b = new THREE.BatchedMesh(2, 48, 72, new THREE.MeshBasicMaterial());
+    const id = b.addGeometry(geo);
+    b.setMatrixAt(b.addInstance(id), new THREE.Matrix4().makeTranslation(x, 0, z));
+    b.setMatrixAt(b.addInstance(id), new THREE.Matrix4().makeTranslation(x + 6, 0, z));
+    b.computeBoundingSphere();
+    b.frustumCulled = false;
+    b.perObjectFrustumCulled = true;
+    b.castShadow = true;
+    scene.add(b);
+    return b;
+  };
+  const r = 3 + Math.sqrt(3);
+  const box = { x0: -5, x1: 5, z0: -10, z1: 0 };
+  const farBatch = mkBatch(5 + 20 + r + 0.5 - 3, -5);
+  const reachingBatch = mkBatch(5 + 20 + r - 0.5 - 3, -5);
+  const behindBatch = mkBatch(-3, 8);
+  const behindMesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial());
+  behindMesh.position.set(0, 0, 8);
+  behindMesh.castShadow = true;
+  scene.add(behindMesh);
+  const farUnculled = new THREE.Mesh(geo, new THREE.MeshBasicMaterial());
+  farUnculled.position.set(60, 0, -5);
+  farUnculled.frustumCulled = false;
+  farUnculled.castShadow = true;
+  scene.add(farUnculled);
+  scene.updateMatrixWorld(true);
+  assert.ok(Math.abs(farBatch.boundingSphere.radius - r) < 1e-6, 'the batch sphere spans both instances');
+
+  const stats = { tested: 0, culled: 0 };
+  const restore = cullShadowCasters(scene, camera, sunDirection, 1.0, stats, [{ box, minDistanceM: 20 }]);
+  assert.equal(farBatch.castShadow, false, 'a batch wholly 20.5 m outside the box casts nothing');
+  assert.equal(reachingBatch.castShadow, true, 'a batch reaching 19.5 m from the box keeps casting');
+  assert.equal(behindBatch.castShadow, true, 'a batch is never swept: behind the camera it keeps casting');
+  assert.equal(behindMesh.castShadow, false, 'a plain mesh in the same place is swept away');
+  assert.equal(farUnculled.castShadow, true, 'a plain mesh with frustumCulled off keeps casting under rules');
+  assert.equal(stats.tested, 4, 'the three batches and the culled mesh');
+  assert.equal(stats.far, 1);
+  assert.equal(stats.culled, 2);
+  restore();
+  for (const o of [farBatch, reachingBatch, behindBatch, behindMesh, farUnculled]) assert.equal(o.castShadow, true, 'restored');
+
+  cullShadowCasters(scene, camera, sunDirection, 1.0, stats)();
+  assert.equal(stats.tested, 1, 'without rules the batches are not examined');
+  assert.equal(farBatch.castShadow, true);
+}
+
+{
+  // a batch spread like a sector: the sphere round all of it reaches the box, but the box rule holds
+  // whatever a caster's size, so it is judged per instance — off when every instance is beyond, on
+  // when one reaches in; the size rule still judges the batch whole (small pieces can make one big
+  // shadow), and without three's instance table only the whole sphere is judged
+  const scene = new THREE.Scene();
+  const mkBatchAt = (size, points) => {
+    const geo = new THREE.BoxGeometry(size, size, size);
+    const b = new THREE.BatchedMesh(points.length, 24, 36, new THREE.MeshBasicMaterial());
+    const id = b.addGeometry(geo);
+    for (const [x, z] of points) b.setMatrixAt(b.addInstance(id), new THREE.Matrix4().makeTranslation(x, 0, z));
+    b.computeBoundingSphere();
+    b.frustumCulled = false;
+    b.castShadow = true;
+    scene.add(b);
+    return b;
+  };
+  const box = { x0: -5, x1: 5, z0: -10, z1: 0 };
+  const reach = { box, minDistanceM: 20 };
+  const spread = mkBatchAt(2, [[30, -5], [30, -65]]);
+  const spreadReaching = mkBatchAt(2, [[30, -65], [22, -5]]);
+  const smallSpread = mkBatchAt(0.5, [[0, -40], [8, -60]]);
+  scene.updateMatrixWorld(true);
+  const whole = spread.boundingSphere;
+  assert.ok(Math.hypot(whole.center.x - box.x1, whole.center.z - box.z0) - whole.radius < reach.minDistanceM, 'the sphere round the spread batch reaches within 20 m of the box');
+
+  const stats = { tested: 0, culled: 0 };
+  const restore = cullShadowCasters(scene, camera, sunDirection, 1.0, stats, [reach]);
+  assert.equal(spread.castShadow, false, 'every instance wholly beyond the box: the batch casts nothing');
+  assert.equal(spreadReaching.castShadow, true, 'one instance 15.3 m from the box: the batch keeps casting');
+  assert.equal(smallSpread.castShadow, false, 'small pieces beyond the box are beyond the box rule too');
+  assert.equal(stats.far, 2);
+  restore();
+
+  const restoreSize = cullShadowCasters(scene, camera, sunDirection, 1.0, stats, [{ maxRadiusM: 1.5, minDistanceM: 25 }]);
+  assert.equal(smallSpread.castShadow, true, 'the size rule judges the batch whole: the spread of small far pieces keeps casting');
+  assert.equal(spread.castShadow, true);
+  assert.equal(stats.far, 0);
+  restoreSize();
+
+  const table = spread._instanceInfo;
+  assert.ok(Array.isArray(table), "three's instance table is where the rule reads it");
+  spread._instanceInfo = undefined;
+  const restoreNoTable = cullShadowCasters(scene, camera, sunDirection, 1.0, stats, [reach]);
+  assert.equal(spread.castShadow, true, 'without the table only the whole sphere is judged, and it reaches in');
+  restoreNoTable();
+  spread._instanceInfo = table;
+  for (const o of [spread, spreadReaching, smallSpread]) assert.equal(o.castShadow, true, 'restored');
+}
+
+{
+  // the draw distance by size: small far leaves hide for the frame and come back; big, near, parent
+  // and frustumCulled-off objects stay; the stats count what was examined and hidden
+  const scene = new THREE.Scene();
+  const mk = (z, size, parent = scene) => {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(size, size, size), new THREE.MeshBasicMaterial());
+    m.position.set(0, 0, z);
+    parent.add(m);
+    return m;
+  };
+  const farSmall = mk(-130, 0.5);
+  const farBig = mk(-130, 3);
+  const nearSmall = mk(-60, 0.5);
+  const farParent = mk(-130, 0.5);
+  const child = mk(0, 0.5, farParent);
+  const farUnculled = mk(-130, 0.5);
+  farUnculled.frustumCulled = false;
+  const hiddenAlready = mk(-130, 0.5);
+  hiddenAlready.visible = false;
+  scene.updateMatrixWorld(true);
+  const stats = { tested: 0, hidden: 0 };
+  const restore = hideSmallFar(scene, camera, { maxRadiusM: 0.6, minDistanceM: 100 }, stats);
+  assert.equal(farSmall.visible, false, 'a small thing 130 m off is not drawn');
+  assert.equal(farBig.visible, true, 'a big one is, at any distance');
+  assert.equal(nearSmall.visible, true, 'a small one 60 m off is');
+  assert.equal(farParent.visible, true, 'an object with children is left alone');
+  assert.equal(child.visible, false, 'its small far child is a leaf and hides');
+  assert.equal(farUnculled.visible, true, 'frustumCulled off: never hidden');
+  assert.equal(stats.tested, 4, 'the visible culled leaves: farSmall, farBig, nearSmall, child');
+  assert.equal(stats.hidden, 2);
+  restore();
+  for (const m of [farSmall, farBig, nearSmall, farParent, child, farUnculled]) assert.equal(m.visible, true, 'shown again');
+  assert.equal(hiddenAlready.visible, false, 'what was hidden before stays hidden');
 }
 
 console.log('shadowcull: ok');

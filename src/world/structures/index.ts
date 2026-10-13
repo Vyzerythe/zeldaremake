@@ -7,7 +7,7 @@
  * fixed cameras; all ground contact is sampled through `ctx.terrain`;
  * randomness only through `ctx.rng.fork` / Noise2D; textures through `ctx.textures`.
  */
-import { Group, type Mesh, type Object3D, type PointLight } from 'three';
+import { Box3, Group, type Camera, type Mesh, type Object3D, type PointLight } from 'three';
 import type { WorldContext, WorldSystem } from '../system';
 import { ROPE_FENCES, LANTERN_POSTS, type FenceDef } from '../layout';
 import { buildCameraSolids, limbSpheres } from './cameraSolids';
@@ -15,11 +15,13 @@ import { buildFence, createRopeMaterial } from './fence';
 import { buildDistantHouses, distantGlowPeak } from './distantHouse';
 import { buildExpansion, EXPANSION_VISIBLE_M } from './expansion';
 import { buildExpansionSouth } from './expansionSouth';
+import { buildSouthDwellings } from './expansionSouthDwellings';
 import { buildExpansionNorth, GROVE_VISIBLE_M } from './expansionNorth';
 import { SOUTH_VISIBLE_M } from '../util/expansionLocality';
+import { FAR_BANK_BEND, FAR_BANK_BEND_EAST, FAR_BANK_ZONE, farBankDistance, farBankLodAt } from '../util/farBankLocality';
 import { consolidateStaticMeshes } from './geometry';
 import { buildHouse, type HouseSharedMaterials } from './house';
-import { swingLanterns, type LanternRig } from './lantern';
+import { restPodMeshes, swingLanterns, type LanternRig } from './lantern';
 import { buildLanternBranch } from './lanternBranch';
 import { buildLanternPost } from './lanternPost';
 import { buildLogArch } from './logArch';
@@ -187,6 +189,15 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
   bases.push(...south.bases);
   owned.push(...south.owned);
   ctx.shared.walkSpans = [...(ctx.shared.walkSpans ?? []), ...south.walkSpans];
+  // exp-south2: the bridge keeper's hut and the waystation by the path (expansionSouthDwellings.ts),
+  // folded into the south group before its solids and buckets are built; the group draws while
+  // either its own casters or the dwellings' meet the frustum
+  const dwellings = buildSouthDwellings(ctx, mats, rng.fork('south-dwellings'), rope);
+  for (const child of [...dwellings.group.children]) south.group.add(child);
+  bases.push(...dwellings.bases);
+  owned.push(...dwellings.owned);
+  ctx.shared.walkSurfaces = [...(ctx.shared.walkSurfaces ?? []), ...dwellings.walkSurfaces];
+  const southShown = (camera: Camera) => south.visible(camera) || dwellings.visible(camera);
 
   // ---- 2026-09-24 (expansion-north): the grove hamlet above the ledge terrace — the trunk house and
   // its yard, the stilt house and its gangway, the tree hut on its column, the rope walk and the
@@ -205,7 +216,7 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
 
   // the play camera's solids (cameraSolids.ts), voxelised from the parts by name before the merges
   // below rename them; never under a headless capture
-  const cameraSolids = ctx.headless ? null : buildCameraSolids([group, north, expansion.group, south.group, grove.group], limbSpheres(ctx.shared.lanternLimb), grove.cameraWalls);
+  const cameraSolids = ctx.headless ? null : buildCameraSolids([group, north, expansion.group, south.group, grove.group], limbSpheres(ctx.shared.lanternLimb), [...grove.cameraWalls, ...dwellings.cameraWalls]);
   if (cameraSolids) ctx.shared.cameraSolids = { solid: cameraSolids.solid, slim: cameraSolids.slim, walls: cameraSolids.walls };
 
   // ---- draw-call budget: fold the static parts into one mesh per material (+ shadow flags) ----
@@ -250,7 +261,7 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
   // round 56: the south group merged on its own too (its buckets span the bridge and the log, 30–55 m south)
   const southDraws = consolidateStaticMeshes(south.group, (m) => m.name === 'pod-lantern');
   group.add(south.group);
-  south.group.visible = south.visible(ctx.camera);
+  south.group.visible = southShown(ctx.camera);
   const groveDraws = consolidateStaticMeshes(grove.group, (m) => m.name === 'pod-lantern');
   group.add(grove.group);
   grove.group.visible = grove.visible(ctx.camera);
@@ -259,6 +270,49 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
     draws.after += d.after;
     draws.merged += d.merged;
   }
+  // exp-south2: from the bridge head, the bridge, the far bank, the log and the cleft
+  // (util/farBankLocality.ts) the village stands past the south giants' boles or across the gorge,
+  // in the haze (`farBank.nearestVillageM` below): there its structures cast no shadow and its roof
+  // and trunk tufts are not drawn — a shadow and detail distance for that zone alone (lights
+  // untouched); nor is its fine dressing — the rooms' props, rug and plants (seen only through
+  // doorways), the huts' fringes and flowers, the bough's vines and leaves, Saria's house's flowers
+  // and tufts, the lantern posts' rope rings, the lanterns' hanger toggles, the fences' foot moss
+  // and the sign's carved runes, centimetres across: a pixel or two from there
+  const FAR_DETAIL = /^merged:(roof-tufts|trunk-moss-tufts)$|^(merged:)?(interior-props|interior-rug|room47-(leaves|vines)|house-saria-(flowers|tufts)|lantern-post-rope|lantern-hanger|signpost-runes|lantern-branch-(vines|leaves)|hut-(fringe|character):.+|fence-[a-z-]+-foot-moss)$/;
+  const farCasters: Mesh[] = [];
+  const farDetail: Mesh[] = [];
+  let villageNearestM = Infinity;
+  const villageBox = new Box3();
+  const collectVillage = (o: Object3D) => {
+    if (o === south.group || o === grove.group) return;
+    const m = o as Mesh;
+    if (m.isMesh) {
+      if (m.castShadow) farCasters.push(m);
+      if (FAR_DETAIL.test(m.name)) farDetail.push(m);
+      villageNearestM = Math.min(villageNearestM, farBankDistance(villageBox.setFromObject(m)));
+    }
+    for (const c of o.children) collectVillage(c);
+  };
+  group.updateMatrixWorld(true);
+  for (const c of group.children) collectVillage(c);
+  // and the village's pods, one swinging draw each, draw folded at rest: one draw per material and
+  // group (lantern.ts restPodMeshes; the swing moves a pod ≤ 4 cm, under a pixel from 40 m). The
+  // south's pods stay live; the north's and the grove's are hidden with their groups there.
+  const livePods = new Set([...south.lanterns, ...northLanterns, ...grove.lanterns]);
+  const farPodRigs = lanterns.filter((r) => !livePods.has(r));
+  const farPods = restPodMeshes(farPodRigs, [expansion.near, expansion.far, distant.group], group, 'far-bank-pods');
+  const farPodSet = new Set<Object3D>(farPods);
+  let farBank = false;
+  const setFarBank = (camera: Camera) => {
+    const inside = farBankLodAt(camera.position);
+    if (inside === farBank) return;
+    farBank = inside;
+    for (const m of farCasters) m.castShadow = !inside;
+    for (const m of farDetail) m.visible = !inside;
+    for (const r of farPodRigs) r.pivot.visible = !inside;
+    for (const m of farPods) m.visible = inside;
+  };
+  setFarBank(ctx.camera);
   /**
    * The merged buckets' culling bounds (audit, round 20): what three.js frustum-tests each static
    * draw against — geometry bounding sphere at the identity transform — with its triangle count and
@@ -270,7 +324,7 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
     const visit = (root: Object3D, which: 'hero' | 'distant' | 'north' | 'expansion' | 'south' | 'grove') => {
       root.traverse((o) => {
         const m = o as Mesh;
-        if (!m.isMesh) return;
+        if (!m.isMesh || farPodSet.has(m)) return;
         if (which === 'hero' && (!m.name.startsWith('merged:') || distant.group.getObjectById(m.id) || north.getObjectById(m.id) || expansion.group.getObjectById(m.id) || south.group.getObjectById(m.id) || grove.group.getObjectById(m.id))) return;
         const g = m.geometry;
         if (!g.boundingSphere) g.computeBoundingSphere();
@@ -307,13 +361,13 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
     for (const b of bases) gap = Math.max(gap, Math.abs(b[1] - ctx.terrain.height(b[0], b[2])));
     return gap;
   };
-  /** meshes (= draw calls when all are in view) and triangles owned by this system */
+  /** meshes (= draw calls when all are in view) and triangles owned by this system (the far-bank pod folds stand in for pods counted here) */
   const budget = () => {
     let meshes = 0;
     let triangles = 0;
     group.traverse((o) => {
       const m = o as Mesh;
-      if (!m.isMesh) return;
+      if (!m.isMesh || farPodSet.has(m)) return;
       meshes++;
       const g = m.geometry;
       triangles += Math.floor((g.index ? g.index.count : g.attributes.position.count) / 3);
@@ -391,6 +445,19 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
     },
     /** round 56 (expansion-south): the rope bridge over the ravine and the hollow log in the far bank (expansionSouth.ts); drawn only within `visibleWithinM` of the south boxes, in the frustum */
     south: { ...south.audit, draws: southDraws.after, visibleWithinM: SOUTH_VISIBLE_M, visible: south.group.visible },
+    /** exp-south2: the bridge keeper's hut and the waystation (expansionSouthDwellings.ts), drawn with the south group */
+    southDwellings: { ...dwellings.audit, triangles: dwellings.triangles },
+    /** exp-south2: the far-bank shadow and detail distance (util/farBankLocality.ts): village casters and tuft buckets, the village pods folded at rest (rigs → draws), the nearest village mesh to the zone */
+    farBank: {
+      zone: FAR_BANK_ZONE,
+      bend: FAR_BANK_BEND,
+      bendEast: FAR_BANK_BEND_EAST,
+      casters: farCasters.length,
+      detail: farDetail.map((m) => m.name),
+      pods: { rigs: farPodRigs.length, folds: farPods.length, triangles: farPods.reduce((n, m) => n + Math.floor((m.geometry.index ? m.geometry.index.count : m.geometry.attributes.position.count) / 3), 0) },
+      nearestVillageM: +villageNearestM.toFixed(1),
+      active: farBank,
+    },
     /** 2026-09-24 (expansion-north): the grove hamlet — trunk house, stilt house, tree hut, gangway, rope walk, nest, yard (expansionNorth.ts); drawn only within `visibleWithinM` of the grove, in the frustum */
     grove: { ...grove.audit, draws: groveDraws.after, visibleWithinM: GROVE_VISIBLE_M, visible: grove.group.visible },
     logArch: true,
@@ -470,15 +537,17 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
       north.visible = northVisible(c.camera.position.x, c.camera.position.z);
       expansion.near.visible = expansion.visible(c.camera);
       expansion.far.visible = expansion.farVisible(c.camera);
-      south.group.visible = south.visible(c.camera);
+      south.group.visible = southShown(c.camera);
       grove.group.visible = grove.visible(c.camera);
+      setFarBank(c.camera);
     },
     onCameraMove(camera) {
       north.visible = northVisible(camera.position.x, camera.position.z);
       expansion.near.visible = expansion.visible(camera);
       expansion.far.visible = expansion.farVisible(camera);
-      south.group.visible = south.visible(camera);
+      south.group.visible = southShown(camera);
       grove.group.visible = grove.visible(camera);
+      setFarBank(camera);
     },
     dispose() {
       // one-shot: every geometry, material and owned texture is released exactly once, however

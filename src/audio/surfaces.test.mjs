@@ -42,10 +42,15 @@ function loadTs(file) {
 
 const here = path.dirname(new URL(import.meta.url).pathname);
 const { surfaceAt } = loadTs(path.join(here, 'index.ts'));
-const { LAYOUT, EXPANSION, EXPANSION_SOUTH, EXPANSION_NORTH, northGangway } = loadTs(path.join(here, '../world/layout.ts'));
+const { LAYOUT, EXPANSION, EXPANSION_SOUTH, EXPANSION_SOUTH_DWELLINGS, EXPANSION_NORTH, northGangway } = loadTs(path.join(here, '../world/layout.ts'));
 
 /** rotate (u along, v across) in a thing's own frame into the world */
 const inFrame = (x, z, yaw, u, v) => [x + Math.cos(yaw) * u - Math.sin(yaw) * v, z + Math.sin(yaw) * u + Math.cos(yaw) * v];
+/** `out` m along the keeper's gallery's east end line from the hut's centre, `off` m off it on the landward side */
+const onEastStep = (K, out, off) => {
+  const g = (K.gallery.from * Math.PI) / 180;
+  return [K.centre[0] + Math.cos(g) * out + Math.sin(g) * off, K.centre[1] + Math.sin(g) * out - Math.cos(g) * off];
+};
 
 /** [what it is, x, z, the surface it must sound like] */
 function standingPlaces() {
@@ -60,6 +65,27 @@ function standingPlaces() {
   const tn = EXPANSION_SOUTH.tunnel;
   const dl = Math.hypot(tn.dir[0], tn.dir[1]) || 1;
   for (const d of [1.5, 3]) p.push([`the far bank's log, ${d} m in`, tn.mouth[0] + (tn.dir[0] / dl) * d, tn.mouth[1] + (tn.dir[1] / dl) * d, 'hollow']);
+
+  // exp-south2: the bridge keeper's gallery hangs over the gorge on its south side and stands on
+  // the lip on its east and west ends, where the path steps onto it; the waystation is a floor on
+  // bearers a step up from the path
+  const K = EXPANSION_SOUTH_DWELLINGS.keeper;
+  const onGallery = (deg, r) => [K.centre[0] + Math.cos((deg * Math.PI) / 180) * r, K.centre[1] + Math.sin((deg * Math.PI) / 180) * r];
+  for (const deg of [60, 100, 135]) p.push([`the keeper's gallery over the gorge at ${deg}°`, ...onGallery(deg, 1.7), 'bridge']);
+  for (const deg of [0, 200, 221]) p.push([`the keeper's gallery on the lip at ${deg}°`, ...onGallery(deg, 1.7), 'wood']);
+  p.push(["the split-log step at the gallery's entrance", ...onGallery(210, 2.45), 'wood']);
+  p.push(["the log step off the gallery's east end", ...onGallery(-20.5, 1.86), 'wood']);
+  // that log lies beside the end line, and by the hut its landward edge is 12° short of the end:
+  // the dwellings walk stepped down onto it at (9.05, 31.11) and heard grass
+  for (const [out, off] of [[1.55, 0.27], [2.2, -0.05]]) p.push([`the east log step ${out} m out, ${off} m off the end line`, ...onEastStep(K, out, off), 'wood']);
+  p.push(['the east log step where the dwellings walk heard grass', 9.05, 31.11, 'wood']);
+  const W = EXPANSION_SOUTH_DWELLINGS.waystation;
+  const wYaw = (W.facingDeg * Math.PI) / 180;
+  const onWaystation = (a, s) => [W.centre[0] + Math.sin(wYaw) * a + Math.cos(wYaw) * s, W.centre[1] + Math.cos(wYaw) * a - Math.sin(wYaw) * s];
+  for (const [a, s] of [[0, 0], [-0.4, 0.6], [0.3, -0.7]]) p.push([`the waystation's floor at (${a}, ${s}) in its own frame`, ...onWaystation(a, s), 'wood']);
+  p.push(["the waystation's step", ...onWaystation(0.79, 0), 'wood']);
+  for (const s of [-0.3, 0.3, 0.7]) p.push([`the waystation's lower step at s ${s}`, ...onWaystation(1.09, s), 'wood']);
+  p.push(["the waystation's lower step under the upper one's front edge, north of it", ...onWaystation(0.925, 0.7), 'wood']);
 
   p.push(["the log arch's bore on the north path", 4.84, -55.4, 'hollow']);
   p.push(['the main stone flight', 9.2, -1.4, 'stone']);
@@ -117,6 +143,17 @@ test('the ground around them is still the ground', () => {
   assert.equal(surfaceAt(c.x, c.z + c.radius + 2).surface, 'leaf', 'the forest floor outside the clearing');
   const wh = EXPANSION.westHouse;
   assert.notEqual(surfaceAt(wh.host[0] + wh.radius + 1.5, wh.host[1]).surface, 'wood', 'the ground off the west house platform');
+  const K = EXPANSION_SOUTH_DWELLINGS.keeper;
+  const north = surfaceAt(K.centre[0] + Math.cos((270 * Math.PI) / 180) * 1.8, K.centre[1] + Math.sin((270 * Math.PI) / 180) * 1.8).surface;
+  assert.ok(north !== 'wood' && north !== 'bridge', `the ground on the keeper's hut's landward side, off the gallery's arc, sounds like ${north}`);
+  for (const [out, off] of [[1.8, 0.45], [2.45, 0.1]]) {
+    const past = surfaceAt(...onEastStep(K, out, off)).surface;
+    assert.ok(past !== 'wood' && past !== 'bridge', `the ground past the east log step (${out} m out, ${off} m off the end line) sounds like ${past}`);
+  }
+  const W = EXPANSION_SOUTH_DWELLINGS.waystation;
+  const wYaw = (W.facingDeg * Math.PI) / 180;
+  const front = surfaceAt(W.centre[0] + Math.sin(wYaw) * 1.7, W.centre[1] + Math.cos(wYaw) * 1.7).surface;
+  assert.ok(front !== 'wood', `the path in front of the waystation's step sounds like ${front}`);
 });
 
 test('every surface the footstep designer knows is reachable somewhere in the world', () => {

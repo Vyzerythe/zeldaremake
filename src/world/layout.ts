@@ -902,6 +902,13 @@ export const EXPANSION_SOUTH = {
    * and `halfBase` m off the axis — a broad forested rise the log burrows into (a bank ending at
    * the shoulders read as a lone cone from the bridge), uneven past the trough and eased out
    * before the ravine's lip (terrain/south.ts `bankHeight`).
+   *
+   * `cleft` (exp-south2): behind the face the bank is split along the axis from `from` m on — a
+   * sunken cleft `floor` m either side of the axis (widening from the log's end to the bank's
+   * back), its walls climbing to the plateau over `wall` m, its bed `lift` m over the plain — so
+   * the tube runs on under the face to its broken far end and opens into daylight: the forest
+   * beyond is what the walker sees through the log, past the roots that close the walk at
+   * `deadEnd`. The carve under the hollow runs on to `carveEnd`, the far end.
    */
   tunnel: {
     mouth: [4.25, 46.9] as [number, number],
@@ -911,8 +918,9 @@ export const EXPANSION_SOUTH = {
     innerRadius: 1.66,
     axisY: 1.28,
     deadEnd: 5.6,
-    carveEnd: 6.35,
+    carveEnd: 7.4,
     mound: { rise: 0.4, face: [6.2, 7.1] as [number, number], crest: 9.5, back: 13.0, shoulder: [2.3, 4.8] as [number, number], halfTop: 8.0, halfBase: 14.0, height: 4.0 },
+    cleft: { from: 7.05, floor: [1.7, 2.9] as [number, number], wall: 2.4, lift: 0.4 },
   },
   /**
    * The ravine's centreline (x, z, top half width W, depth D) west → east: a gorge closing to
@@ -1043,6 +1051,82 @@ export const EXPANSION_SOUTH_BOXES = (() => {
 export function inExpansionSouth(x: number, z: number): boolean {
   for (const b of EXPANSION_SOUTH_BOXES) if (x >= b.x0 && x <= b.x1 && z >= b.z0 && z <= b.z1) return true;
   return false;
+}
+
+/**
+ * exp-south2 (the owner, 2026-09-24 06:07 UTC: "more structures along the path further down"):
+ * the people who live on the way out, built by structures/expansionSouthDwellings.ts. Apart from
+ * `EXPANSION_SOUTH` so nothing that iterates it re-rolls; both stand in the wedge `plaza-south`'s
+ * trunk hides from camera C.
+ *
+ * `keeper` — the bridge keeper's hut on the ravine's north lip, 3.4 m east of the north sill: a
+ * round hut on a mast (a dead snag trimmed to a pole, its broken top carrying a beacon pod over
+ * the gorge) with a plank gallery wrapped round its gorge side on raking struts. `floorY` is
+ * absolute; the lip falls from −0.4 under the hut's north rim to −8 under the gallery's south
+ * edge. Angles: `facingDeg` / `doorDeg` as the village huts (compass, from +Z toward +X; the
+ * window watches the bridge, the door opens onto the gallery's entrance); `gallery` and
+ * `entrance` are WALL angles (deg, atan2(dz, dx): 0 east, 90 south — the builder's own), the
+ * gallery running from `from` round the south to `to` between the platform's rim and `outer`
+ * (walked onto at `entrance`, the path's side; left at `from` down a step onto the lip's
+ * north-east shoulder, where the ground is within a step of the boards).
+ *
+ * `waystation` — a lean-to by the path where it straightens for the bridge, between
+ * `plaza-south`'s root flare (0.5 m off its north-east corner) and fable-3's waymarker (whose
+ * short board reaches 0.45 m north of its post, 0.3 m short of the roof's south eave): a
+ * moss-roofed shelter open to the path (`facingDeg`), `width` × `depth`, on a plank floor at
+ * `floorY` (the flare's ground is +0.16 under its back corner, −0.47 under its front one), its
+ * back wall with a round window, a bench, firewood stacked against its north end. `backHeight`
+ * clears the play camera's level line from Link's aim (1.5 m over the floor, 1.74–1.81 m where it
+ * meets the wall) so the wall stops the camera inside, under the roof; the north end is a half
+ * wall (`northHeight`) the camera looks over.
+ */
+export const EXPANSION_SOUTH_DWELLINGS = {
+  keeper: {
+    centre: [7.1, 31.9] as [number, number],
+    floorY: -0.08,
+    radius: 1.15,
+    wall: 1.9,
+    capHeight: 1.1,
+    facingDeg: -33,
+    doorDeg: -97,
+    gallery: { from: -14, to: 228, outer: 2.25 },
+    entrance: [193.4, 228] as [number, number],
+    mast: { radius: 0.3, top: 5.6 },
+  },
+  waystation: {
+    centre: [5.12, 25.95] as [number, number],
+    facingDeg: -74,
+    width: 2.0,
+    depth: 1.35,
+    floorY: 0.22,
+    frontHeight: 1.95,
+    backHeight: 1.65,
+    northHeight: 0.95,
+  },
+} as const;
+
+/**
+ * true where a dwelling stands (`pad` m beyond its footprint): the keeper's gallery out to its rim
+ * (from the chopping block beside its east end round the gorge to 6° past its west end), the hut
+ * and its firewood under the north eave on the landward side (which reaches 1.97 m; fable-3's
+ * squat pot by the bridge stands 2.35 m out there), the waystation's rectangle with its roof's
+ * overhang — the legacy streams' instances and the south dressing's plants keep off them
+ */
+export function inSouthDwelling(x: number, z: number, pad = 0): boolean {
+  const K = EXPANSION_SOUTH_DWELLINGS.keeper;
+  const kr = Math.hypot(x - K.centre[0], z - K.centre[1]);
+  const arcFrom = K.gallery.from - 30;
+  const kth = ((((Math.atan2(z - K.centre[1], x - K.centre[0]) * 180) / Math.PI - arcFrom) % 360) + 360) % 360;
+  if (kr < (kth < K.gallery.to + 6 - arcFrom ? K.gallery.outer + 0.15 : 2.05) + pad) return true;
+  const W = EXPANSION_SOUTH_DWELLINGS.waystation;
+  const a = (W.facingDeg * Math.PI) / 180;
+  const fx = Math.sin(a);
+  const fz = Math.cos(a);
+  const dx = x - W.centre[0];
+  const dz = z - W.centre[1];
+  const along = dx * fx + dz * fz;
+  const across = dx * fz - dz * fx;
+  return Math.abs(along) < W.depth / 2 + 0.45 + pad && Math.abs(across) < W.width / 2 + 0.35 + pad;
 }
 
 /**

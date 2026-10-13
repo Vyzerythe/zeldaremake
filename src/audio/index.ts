@@ -18,7 +18,7 @@ import type { Wind } from '../world/wind/wind';
 import type { PlayerHandle } from '../world/character/player';
 import { surfaceMask } from '../world/terrain/heightfield';
 import { forestFloorZone } from '../world/terrain/material';
-import { EXPANSION, EXPANSION_NORTH, EXPANSION_SOUTH, LAYOUT, northGangway } from '../world/layout';
+import { EXPANSION, EXPANSION_NORTH, EXPANSION_SOUTH, EXPANSION_SOUTH_DWELLINGS, LAYOUT, northGangway } from '../world/layout';
 import { createBuses, createRng, voices as liveVoices, MASTER_LEVEL, type Buses } from './graph';
 import { aheadFor, AHEAD_CEILING, createAmbience, type Ambience, type AmbienceLayer, type AmbienceStats, type Vec3 } from './ambience';
 import { contactFor, createFootsteps, paceFrom, RUN_GROUND_SPEED, WALK_SPEED, type Footsteps, type FootstepStats, type Surface } from './footsteps';
@@ -495,6 +495,9 @@ export function surfaceAt(x: number, z: number): { surface: Surface; stairs: boo
  *    ravine are not the same sound.
  *  - the hollow log at the far bank: the same bore sound as the arch by the plaza, with the same
  *    smooth enclosure as the wood closes over the listener.
+ *  - exp-south2 (`EXPANSION_SOUTH_DWELLINGS`): the keeper's gallery knocks like the bridge where
+ *    its boards hang over the gorge and like a deck where the lip is still under them (its two
+ *    log steps with it); the waystation's floor and its step are a deck on the ground.
  */
 function southSurfaceAt(x: number, z: number, canopy: number, gorge: number): { surface: Surface; stairs: boolean; enclosure: number; canopy: number; gorge: number } | null {
   const b = EXPANSION_SOUTH.bridge;
@@ -520,6 +523,40 @@ function southSurfaceAt(x: number, z: number, canopy: number, gorge: number): { 
     if (u > -0.3 && u < tn.deadEnd && v < tn.innerRadius * 0.8) {
       return { surface: 'hollow', stairs: false, enclosure: Math.max(0, Math.min(1, Math.min(u / 1.6, (tn.innerRadius * 0.8 - v) / 0.5))), canopy, gorge };
     }
+  }
+  const K = EXPANSION_SOUTH_DWELLINGS.keeper;
+  {
+    const r = Math.hypot(x - K.centre[0], z - K.centre[1]);
+    // wall angle (deg, 0 east, 90 south) measured from the gallery's east end
+    const th = ((((Math.atan2(z - K.centre[1], x - K.centre[0]) * 180) / Math.PI - K.gallery.from + 8) % 360) + 360) % 360 - 8;
+    // the split-log step lies across the entrance just off the boards (to 2.63 m out)
+    const reach = th > K.entrance[0] - K.gallery.from ? K.gallery.outer + 0.42 : K.gallery.outer + 0.05;
+    if (r > K.radius && r < reach && th < K.gallery.to - K.gallery.from) {
+      const overGorge = th > 34 - K.gallery.from && th < 165 - K.gallery.from;
+      return { surface: overGorge ? 'bridge' : 'wood', stairs: false, enclosure: 0, canopy: overGorge ? 0 : canopy, gorge };
+    }
+    // the split log along the gallery's open east end lies beside the end line, not on the arc: its
+    // walk runs 1.475–2.245 m out along the line and −0.08…0.30 m off it on the landward side, and
+    // near the hut that is up to 12° short of the gallery's end
+    const g = (K.gallery.from * Math.PI) / 180;
+    const out = (x - K.centre[0]) * Math.cos(g) + (z - K.centre[1]) * Math.sin(g);
+    const off = (x - K.centre[0]) * Math.sin(g) - (z - K.centre[1]) * Math.cos(g);
+    if (out > K.radius + 0.325 && out < K.gallery.outer && off > -0.08 && off < 0.305) return { surface: 'wood', stairs: false, enclosure: 0, canopy, gorge };
+  }
+  const W = EXPANSION_SOUTH_DWELLINGS.waystation;
+  {
+    const f = (W.facingDeg * Math.PI) / 180;
+    const fx = Math.sin(f);
+    const fz = Math.cos(f);
+    const a = (x - W.centre[0]) * fx + (z - W.centre[1]) * fz;
+    const s = (x - W.centre[0]) * fz - (z - W.centre[1]) * fx;
+    const hd = W.depth / 2;
+    // the floor, then its two split-log steps along the front (structures/expansionSouthDwellings.ts):
+    // the upper out to 0.265 m past the floor across s −0.74…0.62, the lower from 0.24 m to 0.565 m
+    // across −0.54…0.82 (its walk starts under the upper log's front edge)
+    const onFloor = a > -hd && a < hd && Math.abs(s) < W.width / 2;
+    const onStep = (a >= hd && a < hd + 0.265 && s > -0.74 && s < 0.62) || (a >= hd + 0.24 && a < hd + 0.565 && s > -0.54 && s < 0.82);
+    if (onFloor || onStep) return { surface: 'wood', stairs: false, enclosure: 0, canopy, gorge };
   }
   return null;
 }

@@ -75,6 +75,45 @@ const southFrames = () => {
   };
 };
 /**
+ * layout.ts EXPANSION_SOUTH_DWELLINGS as expansionSouthDwellings.ts walks it: the keeper's gallery
+ * (deck top floorY + 0.01) between the closed hut (`hut`) and the railing's band (`railR` ± `railHalf`
+ * over `from` … `railTo`), boarded `from` … `to` (wall angles, deg: 0 east, 90 south); the waystation's
+ * floor (`facingDeg` compass, `a` toward the path, `s` toward the south end), `width` along `s` by
+ * `depth` along `a`, its back wall and north half wall `backHeight` / `northHeight` over the floor
+ */
+const DWELLINGS = {
+  keeper: { centre: [7.1, 31.9], deckY: -0.07, hut: 1.4, railR: 2.17, railHalf: 0.18, from: -14, to: 228, railTo: 193.4 },
+  waystation: { centre: [5.12, 25.95], facingDeg: -74, floorY: 0.22, width: 2.0, depth: 1.35, backHeight: 1.65, northHeight: 0.95 },
+};
+/** the waystation's split-log steps (structures/expansionSouthDwellings.ts): their axes' distance out of the front (a), their ends (s) and half-width */
+const WAYSTATION_STEPS = { upper: { a: 0.79, s: [-0.7, 0.58] }, lower: { a: 1.09, s: [-0.5, 0.78] }, halfWidth: 0.15 };
+const keeperAt = (thetaDeg, r) => [DWELLINGS.keeper.centre[0] + Math.cos(rad(thetaDeg)) * r, DWELLINGS.keeper.centre[1] + Math.sin(rad(thetaDeg)) * r];
+const waystationLocal = ([x, , z]) => {
+  const W = DWELLINGS.waystation;
+  const fx = Math.sin(rad(W.facingDeg));
+  const fz = Math.cos(rad(W.facingDeg));
+  const dx = x - W.centre[0];
+  const dz = z - W.centre[1];
+  return { a: dx * fx + dz * fz, s: dx * fz - dz * fx };
+};
+const waystationAt = (a, s) => {
+  const W = DWELLINGS.waystation;
+  const fx = Math.sin(rad(W.facingDeg));
+  const fz = Math.cos(rad(W.facingDeg));
+  return [W.centre[0] + fx * a + fz * s, W.centre[1] + fz * a - fx * s];
+};
+/** where (x, z) stands against the keeper's hut: 'hut' | 'railing' | 'gallery' | null (off it) */
+const keeperZone = ([x, z]) => {
+  const K = DWELLINGS.keeper;
+  const r = Math.hypot(x - K.centre[0], z - K.centre[1]);
+  const th = deg(Math.atan2(z - K.centre[1], x - K.centre[0]));
+  const within = (a, b) => ((((th - a) % 360) + 360) % 360) <= b - a;
+  if (r <= K.hut) return 'hut';
+  if (Math.abs(r - K.railR) <= K.railHalf && within(K.from, K.railTo)) return 'railing';
+  if (r < K.railR - K.railHalf && within(K.from, K.to)) return 'gallery';
+  return null;
+};
+/**
  * layout.ts EXPANSION_NORTH (the grove): its flight, the trail's centreline, the trunk house's door
  * front, the gangway's foot and head (the shelf's y and the deck's), the stilt house's veranda
  * (centre, floor, walkable ring, railing radius, the door's and the walkway's angles — rad from +x
@@ -639,9 +678,11 @@ async function walkRoute(page, name, points, maxFrames = 900) {
   while (wp < points.length && frames < maxFrames) {
     const st = await state(page);
     const [x, , z] = st.link;
-    const [tx, tz] = points[wp];
+    const [tx, tz, need] = points[wp];
     const dist = Math.hypot(tx - x, tz - z);
-    if (dist < 0.5) {
+    // a waypoint may ask for more than passing within 0.5 m: nearer (`within`) and at a height (`y`,
+    // standing on a floor rather than in the pit in front of it)
+    if (dist < (need?.within ?? 0.5) && (need?.y === undefined || Math.abs(st.link[1] - need.y) < 0.06)) {
       wp++;
       best = Infinity;
       lastProgressAt = frames;
@@ -747,6 +788,14 @@ async function walkScenario(page, results) {
     // round 56 (expansion-south): out of the plaza down the south approach, between the giants'
     // roots to the ravine, over the rope bridge on its axis and into the hollow log to near its glow
     ['south-bridge-to-log', [[0.5, 3], [0.8, 10], [1, 16], [-0.5, 17.2], [-1.2, 19.4], [-1.32, 21.6], [-0.8, 23.55], [0.4, 25.15], [2.0, 26.55], [3.3, 27.9], [3.68, 28.95], sf.bridge(-0.6), sf.bridge(1.4), sf.bridge(4.1), sf.bridge(6.9), sf.bridge(9.8), sf.bridge(12.2), sf.bridge(sf.len + 0.5), [4.14, 45.2], sf.log(0), sf.log(2), sf.log(4.8)], 2400],
+    // exp-south2: off the path up the waystation's steps onto its floor (standing on it, at its
+    // height) and out again, along the verge north of the toll pile to the bridge head, onto the
+    // keeper's gallery at its entrance, round the hut over the gorge, down the east step and back
+    // round the hut's north side to the path
+    ['south-dwellings', [[3.3, 27.9], [3.9, 26.6], waystationAt(WAYSTATION_STEPS.upper.a, 0), [...waystationAt(0.3, 0), { within: 0.2, y: DWELLINGS.waystation.floorY }], [...waystationAt(0.3, 0.5), { within: 0.25, y: DWELLINGS.waystation.floorY }], waystationAt(WAYSTATION_STEPS.lower.a, 0.3), [3.9, 27.4], [4.3, 29.0], [5.1, 30.1], keeperAt(221, 2.0), keeperAt(200, 1.7), keeperAt(170, 1.7), keeperAt(135, 1.7), keeperAt(100, 1.7), keeperAt(60, 1.7), keeperAt(20, 1.7), keeperAt(-8, 1.7), keeperAt(-20.5, 1.86), [9.35, 31.0], [9.0, 30.0], [8.0, 29.35], [6.6, 29.2], [5.6, 28.55], [3.68, 28.95]], 2400],
+    // exp-south2: the way back — from the log's dead end (the exit's glade beyond the roots) out of
+    // the mouth, over the bridge, round plaza-south's foot and up the south approach to the plaza
+    ['south-log-to-village', [sf.log(4.8), sf.log(2), sf.log(0), [4.14, 45.2], sf.bridge(sf.len + 0.5), sf.bridge(12.2), sf.bridge(9.8), sf.bridge(6.9), sf.bridge(4.1), sf.bridge(1.4), sf.bridge(-0.6), [3.68, 28.95], [3.3, 27.9], [2.0, 26.55], [0.4, 25.15], [-0.8, 23.55], [-1.32, 21.6], [-1.2, 19.4], [-0.5, 17.2], [1, 16], [0.8, 10], [0.5, 3]], 2400],
     // 2026-09-24 (expansion-north): from the second clearing up the ledge flight, past the grove's
     // sign and up its flight, along the trail to the shelf and the trunk house's door, back across
     // the yard, up the gangway onto the stilt house's veranda, round it the south way (past the
@@ -763,6 +812,11 @@ async function walkScenario(page, results) {
   }
   if (!pickRoutes || pickRoutes.has('south-bridge-to-log')) {
     results.southProbes = await southProbes(page);
+    fs.writeFileSync(path.join(out, 'playtest.json'), JSON.stringify(results, null, 1));
+  }
+  if (!pickRoutes || pickRoutes.has('south-dwellings')) {
+    results.southDwellingProbes = await southDwellingProbes(page);
+    results.southDwellingCamera = await southDwellingCamera(page);
     fs.writeFileSync(path.join(out, 'playtest.json'), JSON.stringify(results, null, 1));
   }
   if (!pickRoutes || pickRoutes.has('north-grove')) {
@@ -828,8 +882,11 @@ async function southProbes(page) {
   }
   // 1.5 m past a sill the gorge's slant can leave a probe 3 m off the axis on the rounded lip: walkable
   // there only while the ground is within 0.5 m of grade ('rim'); 3 m past a sill it is the wall
+  // (exp-south2: where a probe beside the north head now stands on the keeper's gallery it expects
+  // the gallery's boards — 'built': not blocked, far over the gorge floor)
+  for (const p of probes) if (p.where === 'deck-side' && keeperZone(p.at) === 'gallery') p.expect = 'built';
   for (const c of [3.0, -3.0]) probes.push({ where: 'rim-by-north-head', a: 1.5, c, at: sf.bridge(1.5, c), expect: 'rim' });
-  for (const c of [3.0, -3.0]) probes.push({ where: 'ravine-by-north-head', a: 3.0, c, at: sf.bridge(3.0, c), expect: 'blocked' });
+  for (const c of [3.0, -3.0]) probes.push({ where: 'ravine-by-north-head', a: 3.0, c, at: sf.bridge(3.0, c), expect: keeperZone(sf.bridge(3.0, c)) === 'gallery' ? 'built' : 'blocked' });
   for (const c of [3.0, -3.0]) probes.push({ where: 'ravine-by-south-head', a: sf.len - 1.5, c, at: sf.bridge(sf.len - 1.5, c), expect: 'blocked' });
   for (const c of [3.0, -3.0]) probes.push({ where: 'ravine-by-south-head', a: sf.len - 3.0, c, at: sf.bridge(sf.len - 3.0, c), expect: 'blocked' });
   for (const a of [1, 3, SOUTH.deadEnd - 0.4]) probes.push({ where: 'log-floor', a, c: 0, at: sf.log(a), expect: 'walk' });
@@ -839,9 +896,159 @@ async function southProbes(page) {
   const rows = probes.map((p, i) => {
     const g = got[i];
     const ok =
-      p.expect === 'blocked' ? g.blocked === true : p.expect === 'rim' ? g.blocked === true || g.terrain > -0.5 : g.blocked === false && (p.where !== 'deck' || g.walk - g.terrain > 2);
+      p.expect === 'blocked'
+        ? g.blocked === true
+        : p.expect === 'rim'
+          ? g.blocked === true || g.terrain > -0.5
+          : p.expect === 'built'
+            ? g.blocked === false && g.walk - g.terrain > 1
+            : g.blocked === false && (p.where !== 'deck' || g.walk - g.terrain > 2);
     return { where: p.where, a: +p.a.toFixed(2), c: p.c, x: +p.at[0].toFixed(2), z: +p.at[1].toFixed(2), walk: +g.walk.toFixed(3), terrain: +g.terrain.toFixed(3), blocked: g.blocked, expect: p.expect, ok };
   });
+  return { ok: rows.every((r) => r.ok), failed: rows.filter((r) => !r.ok).length, rows };
+}
+
+/**
+ * exp-south2: the dwellings hold Link where they are built — the keeper's gallery walks at its
+ * boards' height all round the gorge side (to their ends at the entrance and at either end line),
+ * its railing, the hut and the gorge past the railing block, both steps walk and in off the west
+ * step the entrance never refuses him; the waystation's floor walks at its boards' height, its back wall, the
+ * bench in front of it, its north wall and the firewood outside block, both its steps walk, and
+ * straight out of the floor over both steps the walk never drops to the ground or rises more than a
+ * stair's riser.
+ */
+async function southDwellingProbes(page) {
+  const K = DWELLINGS.keeper;
+  const W = DWELLINGS.waystation;
+  const probes = [];
+  for (const th of [-5, 30, 60, 90, 120, 150, 180, 210]) probes.push({ where: 'keeper-gallery', th, r: 1.7, at: keeperAt(th, 1.7), expect: 'deck', y: K.deckY });
+  probes.push({ where: 'keeper-entrance', th: 222, r: 2.0, at: keeperAt(222, 2.0), expect: 'deck', y: K.deckY });
+  for (const th of [10, 50, 90, 130, 170]) probes.push({ where: 'keeper-railing', th, r: 2.15, at: keeperAt(th, 2.15), expect: 'blocked' });
+  for (const th of [60, 90, 120]) probes.push({ where: 'keeper-past-railing', th, r: 2.6, at: keeperAt(th, 2.6), expect: 'blocked' });
+  for (const [th, r] of [[0, 0.3], [200, 1.0], [300, 1.2]]) probes.push({ where: 'keeper-hut', th, r, at: keeperAt(th, r), expect: 'blocked' });
+  probes.push({ where: 'keeper-step-east', th: -20.5, r: 1.86, at: keeperAt(-20.5, 1.86), expect: 'step' });
+  // just off the gallery's open end (1° past it), where the walk off the end comes down: the east step, not the ground
+  for (const r of [1.6, 1.85, 2.05]) probes.push({ where: 'keeper-step-east-edge', th: -15, r, at: keeperAt(-15, r), expect: 'step' });
+  // round the whole gallery every 0.5°, inside the railing and at the entrance out to the boards'
+  // ends, across every joint of its chords, and 1 cm inside either end line every 2 cm (the davit's
+  // foot, 0.16 m round (1.93 m, 102°), left out)
+  {
+    const sweep = [];
+    for (const [r, from, to] of [[1.45, K.from, K.to], [1.74, K.from, K.to], [1.95, K.from, K.to], [2.05, K.railTo + 0.5, K.to], [2.2, K.railTo + 0.5, K.to], [2.24, K.railTo + 0.5, K.to]]) {
+      for (let th = from + 0.5; th <= to - 0.5 + 1e-9; th += 0.5) {
+        const at = keeperAt(th, r);
+        if (Math.hypot(at[0] - keeperAt(101.9, 1.93)[0], at[1] - keeperAt(101.9, 1.93)[1]) < 0.2) continue;
+        sweep.push({ r, th: +th.toFixed(1), at });
+      }
+    }
+    for (const [end, side, rOut] of [[K.from, 1, K.railR - K.railHalf - 0.04], [K.to, -1, K.railR + 0.03]]) {
+      for (let r = K.hut + 0.05; r <= rOut + 1e-9; r += 0.02) {
+        const th = end + side * deg(0.01 / r);
+        sweep.push({ r: +r.toFixed(2), th: +th.toFixed(2), at: keeperAt(th, r) });
+      }
+    }
+    const g = await page.evaluate((pts) => pts.map(([x, z]) => window.__ZR_PLAY__.ground(x, z)), sweep.map((p) => p.at));
+    const miss = sweep.filter((_, i) => g[i].blocked !== false || Math.abs(g[i].walk - K.deckY) >= 0.03).map((p, i) => [p.r, p.th]);
+    probes.push({ where: 'keeper-gallery-sweep', samples: sweep.length, missed: miss.length, first: miss.slice(0, 10), at: keeperAt(100, 1.74), expect: 'sweep' });
+  }
+  for (const [a, s] of [[0.3, 0], [0.3, 0.6], [0.3, -0.5], [0.5, 0.2]]) probes.push({ where: 'waystation-floor', a, s, at: waystationAt(a, s), expect: 'deck', y: W.floorY });
+  for (const [a, s] of [[-0.62, 0], [-0.62, 0.5], [-0.38, -0.2]]) probes.push({ where: 'waystation-back-wall', a, s, at: waystationAt(a, s), expect: 'blocked' });
+  // in front of the bench Link stops 0.64 m from the back wall's inner face (the camera's least distance, 0.6 m, stays inside)
+  for (const [a, s] of [[0, 0], [0.05, 0.42], [0.04, -0.5]]) probes.push({ where: 'waystation-bench', a, s, at: waystationAt(a, s), expect: 'blocked' });
+  probes.push({ where: 'waystation-floor', a: 0.2, s: 0, at: waystationAt(0.2, 0), expect: 'deck', y: W.floorY });
+  for (const [a, s] of [[0, -0.95], [0.4, -0.95]]) probes.push({ where: 'waystation-north-wall', a, s, at: waystationAt(a, s), expect: 'blocked' });
+  probes.push({ where: 'waystation-firewood', a: 0, s: -1.28, at: waystationAt(0, -1.28), expect: 'blocked' });
+  const WS = WAYSTATION_STEPS;
+  for (const s of [-0.5, 0, 0.4]) probes.push({ where: 'waystation-step', a: WS.upper.a, s, at: waystationAt(WS.upper.a, s), expect: 'step' });
+  for (const s of [-0.3, 0.3, 0.7]) probes.push({ where: 'waystation-step-low', a: WS.lower.a, s, at: waystationAt(WS.lower.a, s), expect: 'step' });
+  const got = await page.evaluate((pts) => pts.map(([x, z]) => window.__ZR_PLAY__.ground(x, z)), probes.map((p) => p.at));
+  const rows = probes.map((p, i) => {
+    const g = got[i];
+    const ok = p.expect === 'sweep' ? p.missed === 0 : p.expect === 'blocked' ? g.blocked === true : p.expect === 'deck' ? g.blocked === false && Math.abs(g.walk - p.y) < 0.03 : g.blocked === false && g.walk - g.terrain > 0.08;
+    const { at, ...rest } = p;
+    return { ...rest, x: +at[0].toFixed(2), z: +at[1].toFixed(2), walk: +g.walk.toFixed(3), terrain: +g.terrain.toFixed(3), blocked: g.blocked, ok };
+  });
+  // straight out of the waystation's floor over both steps to the ground, every 1 cm: built all the
+  // way to the lower log's front edge (never the ground in a gap: it lies deeper under the floor
+  // than the step guard, a pit), and no rise going in taller than a stair's 0.28 m
+  const lineEnd = WS.lower.a + WS.halfWidth - 0.01;
+  for (const s of [-0.4, 0, 0.3, 0.55]) {
+    const as = [];
+    for (let a = 0.3; a <= lineEnd + 1e-9; a += 0.01) as.push(+a.toFixed(2));
+    const g = await page.evaluate((pts) => pts.map(([x, z]) => window.__ZR_PLAY__.ground(x, z)), as.map((a) => waystationAt(a, s)));
+    const pit = as.filter((_, i) => g[i].blocked || g[i].walk - g[i].terrain < 0.08);
+    let maxRise = 0;
+    for (let i = 1; i < g.length; i++) maxRise = Math.max(maxRise, g[i - 1].walk - g[i].walk);
+    const at = waystationAt(0.3, s);
+    rows.push({ where: 'waystation-floor-to-steps', a: [0.3, +lineEnd.toFixed(2)], s, x: +at[0].toFixed(2), z: +at[1].toFixed(2), heights: [...new Set(g.map((q) => +q.walk.toFixed(2)))], maxRiseM: +maxRise.toFixed(3), offBuiltAt: pit.slice(0, 8), ok: pit.length === 0 && maxRise <= 0.28 });
+  }
+  // in off the keeper's west step across the entrance's boards, every 1 cm: never refused (beside
+  // the bridge the ground between the step and the boards is the gorge's), never below the step
+  // (a pit), no rise over a stair's 0.28 m, onto the deck
+  for (const th of [200, 205, 210, 215, 220]) {
+    const rs = [];
+    for (let r = 2.45; r >= 1.7 - 1e-9; r -= 0.01) rs.push(+r.toFixed(2));
+    const g = await page.evaluate((pts) => pts.map(([x, z]) => window.__ZR_PLAY__.ground(x, z)), rs.map((r) => keeperAt(th, r)));
+    const refused = rs.filter((_, i) => g[i].blocked !== false);
+    const pit = rs.filter((_, i) => g[i].walk < g[0].walk - 0.03);
+    let maxRise = 0;
+    for (let i = 1; i < g.length; i++) maxRise = Math.max(maxRise, g[i].walk - g[i - 1].walk);
+    const end = g[g.length - 1].walk;
+    const at = keeperAt(th, 2.45);
+    rows.push({ where: 'keeper-step-to-entrance', th, r: [2.45, 1.7], x: +at[0].toFixed(2), z: +at[1].toFixed(2), heights: [...new Set(g.map((q) => +q.walk.toFixed(2)))], maxRiseM: +maxRise.toFixed(3), refusedAt: refused.slice(0, 8), pitAt: pit.slice(0, 8), ok: refused.length === 0 && pit.length === 0 && maxRise <= 0.28 && Math.abs(end - K.deckY) < 0.03 });
+  }
+  return { ok: rows.every((r) => r.ok), failed: rows.filter((r) => !r.ok).length, rows };
+}
+
+/**
+ * exp-south2: the follow camera at the dwellings — Link set down on the keeper's gallery facing
+ * along it either way and on the waystation's floor facing in, out and along; once the camera has
+ * settled, the drawn frame's clearance (the share of the view nearer than 0.35 m, Link's chest
+ * hidden behind something nearer or off-screen), whether the camera stands inside the hut (within
+ * its wall, under its eave) and whether it stands in one of the waystation's walls (the back wall
+ * or the north half wall, below its top). Facing out of the waystation its back wall (0.92 m behind
+ * him) stops the camera at its minimum distance (camera/follow.ts) under the roof, where Link's
+ * chest drops below the frame; facing south so does plaza-south's bole 1.6 m past the half wall,
+ * with the root post and the roof's north eave (slim parts the camera may not stand in) before it.
+ * There (`squeeze`) the camera must stand in front of that wall's inner face or, at the half wall,
+ * over its top; everywhere else Link must be in view.
+ */
+async function southDwellingCamera(page) {
+  const K = DWELLINGS.keeper;
+  const W = DWELLINGS.waystation;
+  const f = rad(W.facingDeg);
+  const spots = [];
+  for (const th of [221, 180, 135, 90, 45, 0]) {
+    spots.push({ where: 'keeper-gallery', th, facing: 'on', at: keeperAt(th, 1.7), yaw: Math.atan2(Math.sin(rad(th)), -Math.cos(rad(th))) });
+    spots.push({ where: 'keeper-gallery', th, facing: 'back', at: keeperAt(th, 1.7), yaw: Math.atan2(-Math.sin(rad(th)), Math.cos(rad(th))) });
+  }
+  spots.push({ where: 'waystation-floor', facing: 'in', at: waystationAt(0.3, 0), yaw: f + Math.PI });
+  spots.push({ where: 'waystation-floor', facing: 'out', at: waystationAt(0.3, 0), yaw: f, squeeze: 'back' });
+  spots.push({ where: 'waystation-floor', facing: 'south', at: waystationAt(0.3, -0.4), yaw: Math.atan2(Math.cos(f), -Math.sin(f)), squeeze: 'north' });
+  spots.push({ where: 'waystation-floor', facing: 'north', at: waystationAt(0.3, 0.5), yaw: Math.atan2(-Math.cos(f), Math.sin(f)) });
+  // the walls in the waystation's frame (a out of its open front, s toward its south end)
+  const backA = -(W.depth / 2 - 0.055) - 0.005;
+  const northS = -(W.width / 2 - 0.08) - 0.005;
+  const backInner = backA + 0.07;
+  const rows = [];
+  for (const s of spots) {
+    await page.evaluate(([x, z, yaw]) => window.__ZR_PLAY__.place(x, z, yaw), [s.at[0], s.at[1], s.yaw]);
+    await sim(page, 45);
+    const st = summarise(await state(page));
+    await draw(page);
+    const clear = await clearance(page);
+    const c = st.camera;
+    const rHut = Math.hypot(c[0] - K.centre[0], c[2] - K.centre[1]);
+    const inHut = rHut < 1.25 && c[1] < K.deckY + 3.0;
+    const wl = waystationLocal(c);
+    const inWall =
+      (wl.a > backA - 0.09 && wl.a < backInner && Math.abs(wl.s) < W.width / 2 && c[1] < W.floorY + W.backHeight + 0.05) ||
+      (wl.s > northS - 0.09 && wl.s < northS + 0.07 && Math.abs(wl.a) < W.depth / 2 && c[1] < W.floorY + W.northHeight + 0.05);
+    const squeezeOk = s.squeeze === 'back' ? wl.a > backInner : wl.s > northS + 0.07 || c[1] > W.floorY + W.northHeight + 0.05;
+    const ok = !inHut && !inWall && clear.nearShare < 0.01 && (s.squeeze ? squeezeOk : clear.linkHidden === false);
+    const { at, yaw, ...rest } = s;
+    rows.push({ ...rest, x: +at[0].toFixed(2), z: +at[1].toFixed(2), camera: c, cameraToLink: st.cameraToLink, cameraFromHutAxisM: +rHut.toFixed(3), inHut, waystation: { a: +wl.a.toFixed(3), s: +wl.s.toFixed(3) }, inWall, ...clear, ok });
+  }
   return { ok: rows.every((r) => r.ok), failed: rows.filter((r) => !r.ok).length, rows };
 }
 

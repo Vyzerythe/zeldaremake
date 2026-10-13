@@ -55,7 +55,8 @@ import {
 } from 'three';
 import { FXAAShader } from 'three/examples/jsm/shaders/FXAAShader.js';
 import { perfRuntime } from '../../perfFlags';
-import { cullShadowCasters, type ShadowCullStats } from './shadowcull';
+import { cullShadowCasters, hideSmallFar, type DrawDistanceStats, type ShadowCullStats } from './shadowcull';
+import { farBankDrawRule, farBankShadowRules } from '../util/farBankLocality';
 import { HEIGHT_FOG_DEFAULTS } from '../atmosphere/heightfog';
 import { SCREEN_FAN, SHAFT_COLUMNS } from '../atmosphere/shafts';
 import {
@@ -891,6 +892,8 @@ export function createComposer(opts: ComposerOptions): Composer {
   const overlayViewport = new Vector2(hw, hh);
   /** last frame's shadow-caster cull (shadowcull.ts): casters tested / switched off */
   const shadowCull: ShadowCullStats = { tested: 0, culled: 0 };
+  /** last frame's draw distance by size (shadowcull.ts hideSmallFar), zero where no locality asks */
+  const drawCull: DrawDistanceStats = { tested: 0, hidden: 0 };
   const camPos = new Vector3();
   const camDir = new Vector3();
   const sunWorld = new Vector3();
@@ -1076,14 +1079,20 @@ export function createComposer(opts: ComposerOptions): Composer {
     // 1. opaque scene (+ shadow maps) into HDR. The shadow pass inside it draws only the casters
     // whose shadows can land in frame (shadowcull.ts): three runs scene.onBeforeRender after the
     // world matrices are updated and before the shadow pass, so the test sees this frame's poses;
-    // the casters it switched off are restored once the render returns.
+    // the casters it switched off are restored once the render returns. Where the camera's locality
+    // sets a draw distance by size (util/farBankLocality.ts), the same hook first hides the small
+    // far things for this render, so they neither draw nor cast.
     const casters: { restore: (() => void) | null } = { restore: null };
+    const hidden: { restore: (() => void) | null } = { restore: null };
     const prevOnBeforeRender = scene.onBeforeRender;
-    if (s.shadowCasterCull && renderer.shadowMap.enabled) {
-      scene.onBeforeRender = () => {
-        casters.restore = cullShadowCasters(scene, camera, opts.sunDirection, SHADOW_CULL_MARGIN_M, shadowCull);
-      };
-    } else shadowCull.tested = shadowCull.culled = 0;
+    const cullCasters = s.shadowCasterCull && renderer.shadowMap.enabled;
+    if (!cullCasters) shadowCull.tested = shadowCull.culled = shadowCull.far = 0;
+    scene.onBeforeRender = () => {
+      const drawRule = farBankDrawRule(camera.position);
+      if (drawRule) hidden.restore = hideSmallFar(scene, camera, drawRule, drawCull);
+      else drawCull.tested = drawCull.hidden = 0;
+      if (cullCasters) casters.restore = cullShadowCasters(scene, camera, opts.sunDirection, SHADOW_CULL_MARGIN_M, shadowCull, farBankShadowRules(camera.position));
+    };
     renderer.setRenderTarget(hdr);
     renderer.autoClear = true;
     try {
@@ -1091,6 +1100,7 @@ export function createComposer(opts: ComposerOptions): Composer {
     } finally {
       scene.onBeforeRender = prevOnBeforeRender;
       casters.restore?.();
+      hidden.restore?.();
     }
 
     updateSun(s);
@@ -1307,7 +1317,11 @@ export function createComposer(opts: ComposerOptions): Composer {
       shadowCasterCull: settings.shadowCasterCull,
       shadowCastersTested: shadowCull.tested,
       shadowCastersCulled: shadowCull.culled,
+      /** of those, the far casters the camera's locality turned off (util/farBankLocality.ts) */
+      shadowCastersCulledFar: shadowCull.far ?? 0,
       shadowCullMarginM: SHADOW_CULL_MARGIN_M,
+      /** drawables the camera's locality hid by size and distance last frame (util/farBankLocality.ts) */
+      smallFarHidden: drawCull.hidden,
       /** stages switched off by the performance flags / auto quality (perfFlags.ts); all on as shipped */
       stagesEnabled: { ...perfRuntime().fx, soft: settings.softening && perfRuntime().fx.soft },
       ambientOcclusion: perfRuntime().fx.ao,
