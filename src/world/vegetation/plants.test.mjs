@@ -585,7 +585,10 @@ assert.deepEqual(grass.lodDistances,[6,26,26],'blade LOD ranges (round 39; 2026-
   // rises: the open lawn's floor 2.2 → 2.0, the north verge's 1.4 → 1.25 (measured 1.31); the tufts are the same rooted clusters
   // (2026-09-21: open lawn 2.0 → 1.75 — measured 1.78 since the shot-D boulder moved (take-0128; its ring's blade
   // clearing left the box, the infill's clusters spread): A / B / E were pixel-unchanged at that take)
-  for(const [name,box,floor] of [['open lawn',[-8,-8,-4,-4],1.75],['east flank',[10,-3,14,1],1.6],['north verge',[-2.2,-13.5,-1.6,-11.0],1.25]]){const r=pc(box,0.075);
+  // (2026-09-23: open lawn 1.75 → 1.70 — measured 1.74. The walked verge pass (grass.ts VERGE_EXTRA) thickens the
+  // strip within 2.4 m of the spine's paving, whose last 0.2 m clips this box's east edge: the box's MEAN density is
+  // the ratio's uniform baseline, so a denser corner lowers it while every blade in it is still a rooted cluster's.)
+  for(const [name,box,floor] of [['open lawn',[-8,-8,-4,-4],1.70],['east flank',[10,-3,14,1],1.6],['north verge',[-2.2,-13.5,-1.6,-11.0],1.25]]){const r=pc(box,0.075);
     assert.ok(r.n>=100&&r.ratio>=floor,`${name}: ${r.n} blades, ${r.ratio.toFixed(2)} × the uniform neighbour count inside 0.075 m (≥ ${floor})`);}
   // round 40 (Astra's "tall dark spikes" at the west ledge): the lawn's spike cap (grass.ts LAWN_SPIKE_CAP) takes the
   // 0.5–0.9 m tail off the flat lawns — the CV settles at ≈ 0.45 (0.574 uncapped) — while the tuft factor still
@@ -675,7 +678,9 @@ grassMaterial.dispose();for(const t of grass.tiles){t.mesh.dispose();for(const g
   assert.ok(seam.filter(it=>a.field.bankFace(it.x,it.z)>0.3).length>=10,`seam litter at the bank toe: ${seam.filter(it=>a.field.bankFace(it.x,it.z)>0.3).length}`);
   // round 40: the leaf drift keeps collecting through the lawn's first 1.3 m beyond the seam (the verge transition), thinning into the lawn
   const drift=(lo,hi)=>litter.leaves.items.concat(litter.twigs.items).filter(it=>{const e=a.field.lawnEdgeDistance(it.x,it.z,true);return e>=lo&&e<=hi&&a.field.stairDistance(it.x,it.z)>0.1;}).length;
-  assert.ok(drift(0.3,1.3)>=640,`litter in the verge band beyond the seam: ${drift(0.3,1.3)} (round 39: 554)`);
+  // round 56: the south exit's path paves the band's arc round the spine's old end cap (its west side); expansionCull
+  // prunes the 27 leaves and twigs there (655 → 628)
+  assert.ok(drift(0.3,1.3)>=610,`litter in the verge band beyond the seam: ${drift(0.3,1.3)} (round 39: 554)`);
   assert.ok(drift(0.3,0.8)>drift(0.8,1.3),`the drift thins into the lawn: ${drift(0.3,0.8)} in 0.3–0.8 m against ${drift(0.8,1.3)} in 0.8–1.3 m`);
   const sample=newSample();for(const it of litter.twigs.items){a.field.sample(it.x,it.z,sample);assert.ok(a.field.allowed(it.x,it.z,sample),'twigs never lie on the paving');}
   for(const it of seam){a.field.sample(it.x,it.z,sample);assert.ok(a.field.allowed(it.x,it.z,sample)||it.y-a.ctx.terrain.height(it.x,it.z)>0.03,'seam litter is grass-seated; only the lifted sprinkle lies on slabs');}

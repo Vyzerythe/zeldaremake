@@ -36,9 +36,14 @@ export interface SkyDome {
  * is heightfog's `hazeClosed` (see `openDir` there) — the reference's B forest band and A left
  * quadrant are a dim closed roof with no bright gaps (p90 0.49–0.54).
  */
-// Owner-directed daylight pass (2026-09-16): the earlier warm-grey calibration above is
-// historical. Visible openings now reveal blue upper sky, also used by the environment map.
-export const SKY_GAP_GLARE: [number, number, number] = [0.17, 0.36, 0.65];
+// Owner-directed daylight pass (2026-09-16) made the visible openings blue upper sky. On
+// 2026-09-23 the owner circled exactly that in his screenshot — "a jagged bright-blue streak (sky
+// through a gap)" over the north path — as a defect, and his own recording has no blue sky
+// anywhere: every opening in `review46/r_020–r_028` is a warm off-white glare (the gaps sampled at
+// hue 25–50°, B/R 0.86–0.94). Back to the measured glare, at the brightness the daylight pass
+// wanted: display 0.687, hue 49°, B/R 0.92 — luminous, and it cannot read as a blue sliver against
+// a dark crown. The environment map (SKY_ENV_TINT below) was still calibrated for this warm dome.
+export const SKY_GAP_GLARE: [number, number, number] = [0.368, 0.352, 0.299];
 
 /**
  * Forward lobe hook of the dome (gain at mu = 1, tint at mu = 1, both at mu³). Was 0.12 /
@@ -76,8 +81,17 @@ export const SKY_FAR_LIT_UP: [number, number] = [0.05, 0.17];
  * Round 6: the closed-roof dome toward the north/west (`hazeClosed`) and the dropped sunward term
  * take the cosine-weighted hemisphere (with the halo, integrated in 2D) from (0.393, 0.383, 0.290)
  * to (0.339, 0.336, 0.264); (1.049, 1.0, 1.0025) × 0.481 keeps the same (0.171, 0.161, 0.127) fill.
+ *
+ * 2026-09-23 round 2 (the upper house's dark, `b-upper-2` — fable-cursor left it with lane 1). The
+ * tint's job above was to CANCEL the dome's warmth so the fill stayed on an older calibration. With
+ * the dome now the recording's warm glare, cancelling it is what makes our shaded bark grey: at
+ * `b-upper-2` the trunk face reads l 0.227 / s 0.094 / hue 50° where the demo's shaded house trunk
+ * (`demo61/d_030`, the same surface at the same kind of distance) reads l 0.331 / s 0.164 / hue 36°
+ * — dimmer, greyer and cooler, all three. A surface that only the sky reaches should carry the
+ * sky's colour, so the tint stops subtracting it (1.0, 0.98, 0.93) and `environmentIntensity`
+ * rises with it (lighting/index.ts).
  */
-export const SKY_ENV_TINT: [number, number, number] = [1.049, 1.0, 1.0025];
+export const SKY_ENV_TINT: [number, number, number] = [1.0, 0.98, 0.93];
 
 const SKY_VERT = /* glsl */ `
 varying vec3 vDir;
@@ -252,7 +266,9 @@ export function createSkyDome(cfg: WorldConfig, sunDir: Vector3): SkyDome {
     uOpenDir: { value: new Vector2(...HEIGHT_FOG_DEFAULTS.openDir) },
     uOpenEdges: { value: new Vector2(HEIGHT_FOG_DEFAULTS.openLo, HEIGHT_FOG_DEFAULTS.openHi) },
     uOpenUpEdges: { value: new Vector2(HEIGHT_FOG_DEFAULTS.openUpLo, HEIGHT_FOG_DEFAULTS.openUpHi) },
-    uClosed: { value: new Color(...HEIGHT_FOG_DEFAULTS.hazeClosed) },
+    // the dome is the far end of every ray, so it takes the closed roof's FAR colour (heightfog's
+    // hazeClosedFar) — with the flat `hazeClosed` the horizon sat a step under the air in front of it
+    uClosed: { value: new Color(...HEIGHT_FOG_DEFAULTS.hazeClosedFar) },
     uFarLit: { value: new Color(...HEIGHT_FOG_DEFAULTS.hazeFarLit) },
     uFarLitAmount: { value: HEIGHT_FOG_DEFAULTS.hazeFarLitAmount },
     uFarLitUp: { value: new Vector2(...(o?.farLitUp ?? SKY_FAR_LIT_UP)) },

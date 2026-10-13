@@ -2767,10 +2767,310 @@ Also: lantern bough still a thick plain beam across the top of B (trees pass pen
 - Gaps: Link (Astra); the stairs' pitch (fable-5: the demo's is 35–40°) — a heightfield/layout item;
   shelf props "hollow" (owner; screenshot asked). Sub-agents still blocked by the invoice.
 
-### 2026-09-21 17:45 UTC — tick 208: take-0129 sealed — 40/50 (W23 → pass)
+### 2026-09-21 16:40 UTC — tick 208: take-0129 sealed — 40/50 (W23 → pass)
 - take-0129 on the stairs-logs merge: **40/50**. D +0.0019, E +0.0010, B +0.0006, A −0.0005, C −0.0015,
   F −0.0102 (the log nosings — named). The flight now reads as rounded timber lips over dark troughs,
   the demo's read (fable-5's sheet). Score path today: 37 → 40.
+
+### 2026-09-21 17:05 UTC — tick 209: shelf mouths, the north stand, the pitch closed → take-0130
+- Merged `fable-3-shelf-mouths` (the owner's "hollow shelves": every turned vessel had a flat dark disc
+  for a mouth — now a lip, inner wall and floor), `fable-4-northstand` (V2/opus #01: the dense pole
+  stand beyond the north clearing; C/F identical, A/B/E ≤ 0.03 %, D 0.2 %), `fable-2-logs-test`,
+  `fable-3-stairs-pitch` (measured at A/F: our 26.6° rows sit on the reference's logs — a 35–40° flight
+  would overshoot by 27–34 rows; item closed), fable-5 r52 reviews, notes. tsc + 79/79. take-0130 capturing.
+- Gaps: Link (Astra — nothing new on her branches since 1703f634); the kids' visibility (owner's word
+  pending); grass fullness at player height (vegetation-28's survey on disk; lane blocked by the invoice).
+
+### 2026-09-21 18:40 UTC — tick 210: Astra back — PR #25 (floor moss), PR #26 (log winding), the atlas sRGB fix imported; hearth + plateau roof merged
+- Source-only imports from Astra: `materials/sprouts.ts` (the w05 olive blobs were the joint-sprout
+  moss domes → low leafy colonies), `logNosings.ts` (all 20,160 tube sides wound inward — FrontSide saw
+  the underside; her one-line fix + exact-mesh test), `canopy/atlas.ts` + `trees/leaf-cluster-texture.ts`
+  (linear Colors painted as CSS rgb into sRGB canvases — a double transfer; leaves now carry the
+  authored palette). Merged fable-3-hearth (owner #11), fable-4-plateau-roof (A–E identical), notes.
+  80/80 tests. take-0130 in its last views; take-0131 on 51c9e7cb queued behind it (re-queued with the
+  atlas change in its note).
+- Astra also found `ground.attachSurface` misses the `-logs` meshes (Link's feet don't see the timbers)
+  and has the composed asset `e3ef74a0` (ea939 + stairs-upright) — one character import when pushed.
+
+### 2026-09-21 20:05 UTC — tick 211: take-0130 sealed — 41/50 (W02 → pass)
+- take-0130 on 8873d4e5: **41/50** — W02 (hero stairway steps 16–20: 20 counted with the log nosings)
+  turns to pass; six views within ±0.0003 (interior mouths, the north stand and the pitch note are
+  outside the frames). take-0131 (Astra's three imports, hearth, plateau roof) started on 51c9e7cb.
+
+### 2026-09-21 20:15 UTC — tick 212: Astra's character import + prop collision; fable-2's timber tint
+- Imported (source-only) Astra's `ec79e4ed` (asset `89df38f2`: ea939 + stairs-upright + the run jerk
+  fixed — 32 stale keys; colour grade baked, runtime grading removed; `ground.ts` reads the `-logs`
+  timbers with oriented sole support) and `e5f9365c` (`ground.ts` propBlockers hook, wall policy).
+  Merged fable-3-blockers (the producer), fable-3-hearth-upper, fable-3-arch-rim, fable-2-logs-tint
+  (the timbers re-tinted for outward faces: A lips/troughs l 68/63 → 94/71 vs the reference 100/85).
+  tsc + tests green. take-0131 (Astra's environment imports) capturing; take-0132 queued behind it.
+- Ownership posted: the three flat stair-bank canopy cores + `distant.ts` → Astra; `ground.ts` hooks →
+  Astra; timber form → fable-2 with Astra; timber material → fable-2.
+- Gaps: Link's knee fold on stairs (168°/167° — Astra: root height alone cannot straighten it); the
+  flat canopy cores (Astra's shell); the kids' visibility (owner's word pending).
+
+### 2026-09-21 21:10 UTC — tick 213: fable-3's arch-roll z-fight fix + walk test merged; take-0131 mid-capture
+- Merged `fable-3-arch-rim` (the roll's end tucked 4 cm behind the tube wall) and `fable-3-blockers-walks`
+  (every authored walk stays open under Astra's blocker hook). 14/14 props/structures tests.
+- take-0131: A 8.80 M tris / 442 draws (the plateau roof's lobes; 200 K of headroom left under W38's
+  9.0 M — flagged to fable-4), B 7.95 M, C 7.05 M so far. take-0132 queued behind it.
+- Astra: distant curved-card trial HOLD (her own call); whole-boot clearance acceptance withdrawn
+  pending a 537-point audit (production GLB unchanged).
+
+### 2026-09-21 23:05 UTC — tick 214: take-0131 sealed — 41/50; F +0.0060 with the atlas fix
+- take-0131 on 51c9e7cb (Astra's floor moss / log winding / atlas sRGB; hearth; plateau roof): 41/50.
+  F 0.2321 → 0.2381 (+0.0060), A hue 4.21 → 3.52°, F hue 2.82 → 2.26°; C −0.0023 (Astra's disclosed
+  cost), D −0.0016, A/B/E ±0.0002. A 8.80 M / 442 draws. take-0132 (Link import, prop collision,
+  timber tint, fable-3's hearth/arch rim) started.
+
+### 2026-09-21 23:20 UTC — tick 215: Astra's four (complete foot + boot tips, leaf warmth, bank cores), fable-2's pebble tiles/LOD, fable-3's deck lane + arch roll
+- Source-only imports: PR #26 `06552ded`+`5050496a` (asset `4dcf89c5`; 537-point sole; contact only),
+  PR #28 `0858f39f` (leaf warmth 0.5), PR #29 `57eea8c0` (groups 24/25/26 recessed + 7,100 leaves; scope
+  change acknowledged). Merged fable-2-pebble-lod (pebbles per 10 m tile, frustum-culled, 20-tri look
+  past 10 m — W38 headroom), fable-3-deck-lane, fable-3-arch-rim-2. tsc + 83/83.
+- take-0132 (Link import, collision, timber tint, hearth/arch rim) capturing since 22:57 under load 7;
+  take-0133 (the above) queued behind it. Astra owes the folded-triangle audit fix for persistent lobes.
+- Gaps: Link's stair knee fold (Astra: root height alone cannot fix it; cadence trial rejected); the
+  kids' visibility (owner's word); the invoice block on internal lanes.
+
+### 2026-09-22 00:10 UTC — tick 216: Astra's heel guard imported; fable-4's W38 give-back merged
+- Imported `14129340` (raised-heel guard on the final hip correction; GLB stays `4dcf89c5`) as 38c59560.
+  Merged `fable-4-lodthin` (white-bark distance laminae 8/16 at a larger scale: −22 % medium/low leaf
+  tris; A −20 K, C −70 K, F −40 K; six views ≤ −0.0004). 13/13 tree tests.
+- take-0132 on its B view (A 8.80 M / 442); take-0133 queued with tonight's imports (its A should land
+  well under 9.0 M with fable-2's pebble tiles and this thinning offsetting the bank leaves).
+
+### 2026-09-22 01:15 UTC — tick 217: take-0132 lost to a protocol timeout; take-0133 restarted with both rounds' note
+- take-0132 (Link import etc.) died at its C view — Puppeteer `Runtime.callFunctionOn` timeout after B
+  took 52 min under load 7 (other agents' captures). The queued take-0133 had auto-started with a note
+  covering only the later imports, so I stopped it (30 min in) and restarted it on head 520537e6 with a
+  note describing everything since take-0131: Astra's five character commits (asset 4dcf89c5, 537-point
+  sole, heel guard, baked colours, timber-aware ground, prop collision), PR #28 warmth, PR #29 bank
+  cores, PR #30 audit repair, fable-2 timber tint + pebble tiles/LOD, fable-3 hearth/arch roll/deck lane,
+  fable-4 lamina thinning. Load now 4.
+- Owner's NPC-hide instruction confirmed by Astra as explicit — no longer listed as pending.
+
+### 2026-09-22 02:20 UTC — tick 218: two capture timeouts fixed at the source; take-0133 running (third start)
+- The first take-0133 died like take-0132: `Runtime.callFunctionOn` timed out inside the first render
+  chunk after a viewpoint switch (near-LOD builds + shader compiles for the new bank leaves, under load).
+  `capture.mjs` now renders 5 frames per CDP call (was 15) with a 1,200 s protocolTimeout — the frame
+  sequence is unchanged. Also fixed before the restart: fable-2's merged pebble tiles vs anti-cheat B3
+  (CI on PR #30 flagged pebbles 3151 > 1351 scene instances → W24 fail): tiles declare
+  `userData.mergedInstances`, the census counts it when the geometry can hold it; fable-2's follow-up
+  (far-look meshes declare none) merged. Astra's `41de5a9d` (hip guard target) imported.
+- take-0133 on 06b420c9 covers everything since take-0131; started 02:15 under load < 1.
+
+### 2026-09-22 03:15 UTC — tick 219: heartbeat — take-0133 capturing (A frame written 03:12)
+- No new Fable source this hour; Astra's branches quiet since `41de5a9d`. take-0133's A frame landed at
+  03:12 with the 5-frame CDP chunks (no timeout); B–F, determinism and motion follow (~05:45 seal).
+
+### 2026-09-22 05:05 UTC — tick 220: the capture stall found and fixed; take-0133 on its fourth start
+- The third take-0133 died at B with the 1,200 s timeout after A took 63 min — a session problem, not a
+  chunk problem: a B-only capture of the same build ran clean (10 s/frame, 1,426 s total), so one long
+  page degrades across views (the near-LOD pools + persistent lobes resident since fable-4's lod25 /
+  slots64 and Astra's bank leaves). `capture.mjs` now opens a fresh page per viewpoint and for the
+  determinism pass (A vs A.det byte-identical across pages in a smoke test) and logs any chunk > 120 s.
+  Merged `fable-4-shadowlod` (mid-LOD white-barks stop casting: A 8.74 → 8.68 M, draws −6).
+- **Play-mode concern for Astra / fable-4:** the same accumulation would hit a player walking view to
+  view — flagged in the INBOX (pool residency / memory growth across the plaza).
+
+### 2026-09-22 05:35 UTC — tick 221: owner audio items done; fable-2 dressing fade merged; take-0133 healthy
+- Owner (05:04): the forest's "loud random paper" and surface-correlated footsteps — landed
+  (c2c38485 + hollow-span fix): rustle chop removed, bed darker, birds −3 dB; steps classified
+  stone / dirt / wood / hollow / grass under Link, each gentle (peaks 4–6 dB lower). Before/after
+  offline mixes in /opt/cursor/artifacts. Merged `fable-2-dressing-fade` (near-capable material with
+  a 7–13 m fade on the clearing/backside dressing stones; off every fixed view).
+- take-0133 (fourth start, fresh page per view): A written 05:16 (17 min, the old pace); B running.
+
+### 2026-09-22 06:25 UTC — tick 222: the fourth take-0133 died at B even with a fresh page; browser per view now
+- After a full 90-frame A, the second page in the same Chrome never returned its first render call
+  (20 min timeout at B). `capture.mjs` now launches a new browser per viewpoint and for the determinism
+  pass; smoke test A→B→A.det clean (A vs A.det differ by 55 px ≤ 8/255 — the known boot scatter,
+  within W41). take-0133 restarted (fifth start) at 06:22 with the audio change in its note.
+- No new Fable/Astra source this hour.
+
+### 2026-09-22 07:20 UTC — tick 223: the stalls are OOM kills (tab at 3.6 GB); take-0133's fifth start still alive
+- `dmesg` shows two chrome OOM kills at ~1.85 GB RSS during the night's takes; the slow-chunk log caught
+  A frames 61–65 taking 1,860 s (the GPU process died and restarted). Renderer 1.94 GB + GPU 1.70 GB on
+  a 16 GB box with 3.2 GB available. Root cause is the world's resident memory since the pool/slot/bank
+  work — asked fable-6 for a per-view memory read and fable-4/Astra for trims (INBOX 07:15).
+- The fifth take-0133 is past frame 65 of A and still running; browser-per-view keeps each view's
+  processes fresh. No new Fable/Astra source this hour.
+
+### 2026-09-22 08:35 UTC — tick 224: the stall is memory thrash, not a frame — take-0133 sixth start with 10 GB free
+- The fifth start stalled at frames 61–65 in BOTH A (1,860 s) and B (2,153 s). A CDP profile of A's
+  frames 59–64 on the same build ran clean (15 s/frame, JS idle — all SwiftShader) — because by then
+  the agent daemon that had held 4 GB was gone and 10 GB was available. `dmesg` OOM kills line up with
+  the 06:18/06:22 starts; the later stalls were the box thrashing at ~3 GB free with a 3.6 GB tab.
+  Restarted take-0133 (sixth) at 08:33 with 10.3 GB available; browser-per-view stays.
+- fable-2-pebble-bytes and fable-4-shadowproxy are on the remote; merging after this take seals
+  (no more tree changes under a running capture).
+
+### 2026-09-22 09:20 UTC — tick 225: swap added; the memory branches merged; take-0133 (sixth) stalled again at A 71–75
+- The box has no swap and the agent daemon regrows to 4.3 GB within 20 min of restarting, so the
+  3.6 GB tab thrashes at ~3 GB free: A frames 71–75 took 967 s this start. Added an 8 GB swapfile
+  (`/swapfile`, `swapon`) so pressure degrades to swapping instead of stalls/OOM kills; the take runs on.
+- Merged `fable-4-poolmem` (tree geometries drop CPU arrays on upload: renderer RSS −120 MB) and
+  `fable-2-pebble-bytes` (pebble vertex storage 52 → 19 B). `fable-4-shadowproxy` is HELD by fable-4's
+  own message (draws +8…14) — not merged. 41/41 trees/rocks tests.
+
+### 2026-09-22 10:20 UTC — tick 226: three more memory branches merged; the stall recurs with 7 GB free — not memory alone
+- Merged `fable-2-rock-bytes`, `fable-2-rock-upload`, `fable-3-propmem` (CPU arrays dropped on upload,
+  vertex storage compacted). 29/29 rocks/props tests.
+- take-0133 (sixth): A sealed at 2,301 s (one 967 s stall), B stalled at frames 51–55 (2,445 s) with
+  7.2 GB available and swap unused — so the stall is not only memory. A per-frame monitor shows the JS
+  step at 15–21 ms and the JS heap at 1.5 GB; the frame time is all SwiftShader. Working hypothesis:
+  a late shader compile / program variant when the pools pin a new part type (the stall lands 10–15 min
+  into a view, after the pools fill). Next: a 90-frame monitor alone on a view, watching `programs`.
+- The take runs on (B 71–75 at 29 s/frame while my monitor competed; monitor stopped).
+
+### 2026-09-22 11:15 UTC — tick 227: take-0133 (sixth) grinding on — A 2,301 s, B 4,064 s, C stalled once; fable-4 vertexbytes merged
+- The stalls (a 30-min chunk once per view) recur at random frames with 7 GB or 3 GB free; the whole
+  capture also runs 2.5× slower than yesterday (30 s/frame vs 12) with SwiftShader at 370 % of the
+  4 cores and nothing else busy. The agent daemon regrows to 4.1 GB on every restart. I am leaving the
+  take alone (C at frame 80+; ~5 h more for D/E/F/det/motion) and keeping my own load minimal.
+- Merged `fable-4-vertexbytes` (tree arrays 318 → 228 MB, near pools 224 → 158 MB). 13/13.
+
+### 2026-09-22 12:15 UTC — tick 228: heartbeat — take-0133 at D (C sealed 2,829 s; D stalled once at 71–75)
+- Nothing to merge: fable-2's `form-2` (cleave planes on the D boulder) is NOT landed by fable-2's own
+  call (D −0.0013 for no σ gain — the flat light on that spot is V17's lighting item, not rocks'). fable-2
+  also measured where a SwiftShader frame's 10–14 s go: trees 40 %, vegetation 15 %, terrain 11–15 %.
+- take-0133: A/B/C written (09:10 / 10:19 / 11:08); D past its stall; E, F, det, motion to go.
+
+### 2026-09-22 13:30 UTC — tick 229: the owner's grass item, by hand — blades to 26 m; take-0133 at F
+- vegetation-28's survey (on disk) shows the sampled lawn cells dense (≥ 75 blades/m² everywhere but one
+  foot cell) — the "patches" a walker sees are the far half of every lawn past 16 m, where the blade
+  tiles were hidden and only the carpet's clump cards/mats remained. `grass.ts` mid LOD 16 → 26 m
+  (f9c58007); contract updated. Cost per fixed camera: +41 tiles at A, +31 F, +23 B/E, +13 C, +6 D in
+  the 16–26 m band (≈ +60–100 K tris at A by blade counts; measured at take-0134).
+- take-0133: E written 13:06 (3,144 s, one stall); F capturing; det + motion after (~2 h).
+
+### 2026-09-22 14:10 UTC — tick 230: heartbeat — take-0133 through F (1,160 s, no stall); det pass stalled once at 11–15
+- All six views written (F 13:26); the determinism re-capture and motion pair remain (~1.5 h). No new
+  Fable/Astra source this hour. Next take (0134) carries the grass 26 m blades and the memory branches.
+
+### 2026-09-22 15:55 UTC — tick 231: take-0132 sealed at last (41/50, A +0.0056, F −0.0062); take-0133 started
+- Seven hours of capture for one seal: A 2,301 s, B 4,064 s, C 2,829 s, D ~3,600 s, E 3,144 s,
+  F 1,160 s, det 3,455 s, motion 3,636 s — one 30–40 min stall in most views, at random frames, with
+  memory free or not; SwiftShader at 370 % throughout. take-0132 on 06b420c9: 41/50, A 0.2153 → 0.2209,
+  B −0.0002, C −0.0039, D −0.0001, E ±0, F 0.2381 → 0.2319 (the bank cores' leaves vs the reference's
+  dark mass — Astra's backing candidate is the follow-up). Hue to the reference better in B/C/D/E.
+- take-0133 started 15:50 on f9c58007+: grass blades to 26 m, the six memory branches, dressing fade.
+- Gaps: F's canopy mass (Astra), Link's knee fold (Astra), the capture's stalls (box-bound; the world's
+  3.6 GB tab is the lever — memory branches landing).
+
+### 2026-09-22 16:15 UTC — tick 232: take-0133 A at 8.83 M with the 26 m blades; fable-4 stand LOD merged
+- take-0133: A written 15:56 (1,489 s, no stall) — 452 draws, 8.83 M tris: the 26 m blades cost ≈ +150 K
+  at A, 170 K under W38's ceiling. B under way (one 487 s chunk). Merged `fable-4-standlod` (north
+  stand poles far LOD beyond 50 m: A/B/D/E −50 K; lands in the next take).
+- Astra: fog candidate confined to `HEIGHT_FOG_DEFAULTS`; the `063772a4` backing pair REJECTED (not
+  importing); the bank's `588d3681` successor waits on its F/C coverage gate.
+
+### 2026-09-22 17:15 UTC — tick 233: owner-fable's stand roof (PR #31) merged; Astra's fog + atlas imported; take-0133 at D
+- Merged PR #31 `agent/owner-fable-clearing-roof` (the canopy roof over the north stand and clearing —
+  opus #01; plaza roof byte-identical; final six-view A/C 0, B +0.0010, D +0.0013, E +0.0003).
+  Imported Astra's `886c531c` (seeded leaf-shape far-crown painter) and `c241593e` (height fog:
+  hazeDensity 0.018 → 0.008, hazeFarDensity 0.055 → 0.008, farShadeMin 0.30 → 0.65; her disclosed
+  A −0.0032 / F −0.0039 for far-band contrast +10 % / +43 %) — the owner's clarity direction.
+- take-0133: A 15:56 (8.83 M / 452 — the 26 m blades +150 K), B 16:29, C 16:49 (1,069 s, no stall);
+  D capturing. take-0134 (fog, atlas, stand roof, stand LOD) follows it.
+
+### 2026-09-22 18:10 UTC — tick 234: heartbeat — take-0133 through E (D 17:17, E 17:45; no stalls since C); F next
+- Imported Astra's strap repair (`83ebbc63` → f2f118e2, asset `1873fc17`). Handed Astra the near-canopy
+  free-camera admission lane (giant.ts admission gate, nearCanopy swapRadiiFor, index hero pass): one
+  physical distance rule for play/free/capture, no mode exceptions; W38 at A the hard gate.
+- take-0133 moving at the old pace again (E 1,592 s). take-0134 (fog, atlas, stand roof, stand LOD,
+  strap) follows.
+
+### 2026-09-22 19:35 UTC — tick 235: take-0133 sealed (41/50, neutral as claimed); take-0134 — the clarity set — started
+- take-0133 (grass to 26 m, six memory branches, dressing fade): A −0.0001, B +0.0001, C −0.0004, D 0,
+  E +0.0003, F −0.0022; A 8.83 M / 452. 3 h 45 min, one stall (A 26–30 in the det pass).
+- take-0134 started 19:32 on 3e34a3cd: Astra's fog (three fields) + far-crown atlas, owner-fable's stand
+  roof, fable-4's stand LOD, Link `7f406e40` (straps + 10° run posture). Every frame changes — the
+  owner's direction, costs named in the note.
+- Imported Astra's `be0e22f7` (3e34a3cd). Handed her the near-canopy admission lane and cleared her
+  `plants.ts` far-pack SINGLE switch. Astra's preview holds fable-4's shadow/stand LOD cuts pending a
+  fresh look under the lighter haze; canonical keeps them.
+
+### 2026-09-22 20:20 UTC — tick 236: take-0134 (clarity set) A in at 8.78 M / 456; Astra's admission + packs imported for the next take
+- take-0134: A written 19:53 (1,501 s; 456 draws, 8.78 M — the stand LOD's −50 K under the roof's
+  lobes). B capturing (one 856 s chunk). Nothing new from the Fable chats.
+- Imported Astra's `1c69102d` (far packs → SINGLE: A −140 K, pixel-exact) as 372915a6 and `105a61d5`
+  (upper-canopy admission by physical camera distance in every mode) as a cherry-pick 8f07e181 so
+  fable-4's shadow/stand cuts stay. Both seal in take-0135.
+
+### 2026-09-22 21:15 UTC — tick 237: heartbeat — take-0134 at C (B 20:30; C stalled once, 2,257 s at 26–30)
+- No new Fable/Astra source. take-0134 continues (D/E/F/det/motion left; ~4 h at today's pace).
+
+### 2026-09-22 22:15 UTC — tick 238: heartbeat — take-0134 at D (C 21:25, 3,216 s; D stalled once at 26–30)
+- No new Fable/Astra source. E, F, det, motion remain.
+
+### 2026-09-22 23:25 UTC — tick 239: fable-4's colour-pass culling merged (A −150 K, F −130 K, pixel-identical); take-0134 at E
+- Merged `fable-4-mainpass` (the colour pass draws only in-view family instances; shadow-only instances
+  stay for the shadow pass). 19/19 tree tests. With Astra's packs (−140 K) that is ≈ 290 K of A headroom
+  for take-0135, which carries the admission change.
+- take-0134: D written 22:12 (2,737 s); E stalled 3,139 s at 61–65. F, det, motion remain.
+
+### 2026-09-23 00:25 UTC — tick 240: heartbeat — take-0134 at F (E 23:29, 4,533 s; F stalled 2,506 s at 51–55)
+- No new Fable/Astra source. det + motion after F; seal ≈ 02:30.
+
+### 2026-09-23 01:12–09:30 UTC — owner review 2026-09-23 (passes 1–3) and the owner's 06:50 message (now Claude Opus 5.5)
+- Evidence, measurements and the rubric: `art/environment/owner-2026-09-23/README.md` (157 → 165 → **173 / 200**).
+- **The owner played a stale build**: `monitor/play/` = take-0134 (`702086ba`, 09-22 19:26); a take is ≈ 6 h here.
+  The head is now published on the orphan `play-head` branch (`gauntlet/scripts/publish-play-head.sh`, keeps six
+  bundles for GitHub's raw cache) → https://raw.githack.com/Leonxlnx/zeldaremake/play-head/index.html; githack's one-time
+  "External Content Notice" is clicked by `url-check.mjs` (boot verified: ready 81 s, 0 failed, 0 errors).
+- Pass 3 fixes: the north posts' lights stay in the scene (walking north compiled 52 programs in one frame → 0); camera
+  frame-rate independence (tests at 30/60/144 Hz) and eased slim pushes (1.5 m → 0.4 m in a frame); the log flight's
+  lip shade + log spiral grain; the pod hum cut (−10 to −16 dB); D's hollow grass thicker (geometry +32–61 %, barely
+  visible); the far-trunk row dark (the owner's circled "smooth pale cylinder", named by a depth pick). Tried and backed
+  out: two god-ray veil cuts (duller shafts; fable-5 measured the corridor's bright mist 2.0 → 0.9 % vs his 22.6 %).
+- Harness: nine walk routes with per-frame camera motion, spikes with collision state, stuck probes; the boots' contact
+  on climbs; exposure per look; pacing routes + warm-up; probe-look `settings` / `hide` / `lights` / `time`;
+  `ZR_INIT_GLOBALS`; `light-pools.py`; `url-check.mjs`.
+- Squad: `docs/SQUAD_2026-09-23.md` (lanes 1–10, the copy-paste block the owner sends to up to ten Opus chats).
+  fable-5 took lane 10, fable-3 lane 9 (kindling basket merged), fable-2's 13 m near skin merged. Astra's #25 / #27 /
+  #28 / #26-crown-clarity are already in; #29 conflicts with the memory-tier admission (lane 2 pointer), #26's Link
+  chain is lane 8's. No squad PR yet at 09:30.
+
+### 2026-09-23 20:15 – 09-24 03:00 UTC — round 56: expansion south, the village exit (`agent/fable-cursor-exp-south`, sub-agent)
+- The owner 20:08: "why for the love of God has there been no expansion to the environment past the stuff". Built on the
+  pinned checkpoint `746f1d39` in a scratch worktree; evidence, coordinates and numbers in
+  `art/environment/exp-south-2026-09-23/README.md` (four before/after sheets).
+- What (metres, +z south): the paved path from the spine's end (1, 16) south-west round `plaza-south`'s flared foot,
+  through the gap to `south-centre`, south-east onto the bridge axis at (3.7, 29.9) (16.6 m, 4.0 → 2.4 m wide, grade
+  ≤ 0.07, ≥ 0.48 m off both giants' feet); a west–east ravine (−27.2, 52.2) → (30.3, 49.7), 11.4 m lip to lip and 9.2 m
+  deep at the crossing (3.9, 37.1), with pooled mist, moss draped from the lips (terrain splat), ferns, roots and vines;
+  the rope-and-plank bridge (3.72, 30.45) → (4.08, 43.7) (13.3 m deck, 0.7 m sag, hand ropes on four raked posts, a pod
+  lantern at every post's head); far paving to the hollow log's mouth (4.25, 46.9), walkable 5.6 m in to an emissive
+  glow (no light added).
+- Where it lives: `layout.ts` `EXPANSION_SOUTH` (+ `southPathLine`, `southBridgeFrame`, `inExpansionSouth`); the landform
+  in the heightfield's LIVE view only (`terrain/south.ts`, `heightfield.ts`, `chunks.ts` wall moss); `hardscape` south
+  paving; `structures/expansionSouth.ts`; `vegetation/expansionSouth.ts`; the ravine mist; `character/ground.ts` walk spans
+  (deck, log floor) and edge sliding; `trees/index.ts` + `giant.ts`: trees in the south boxes and the two south giants
+  seat on the live ground, their far plain/side roots dive under the new paving (`rootPressAt`, off for every other
+  giant), their contacts count as live-seated for W12; legacy instances culled off the new ground; `playtest.mjs`
+  route `south-bridge-to-log` + `southProbes`; tests (`terrain/expansionSouth.test.mjs`, expansion2 exemptions, the
+  plants litter floor re-based 655 → 628, floor 610).
+- Commits: `653c1711` `e5d4b0f9` `d57c421c` `465197ff` `2b819a55` `3b5adb5e` `6010ab08` `1bffea1e` `300b8d9f`
+  `8b64880f`.
+- W12 regression caught and fixed in `8b64880f`: the rubric's scene checks on `300b8d9f` failed
+  `systems.trees.maxBaseGap` (4.08 m: south white-barks seated by a sink rule, the south mid-grove audited against
+  the pre-carve ground). Now every south tree stands on the live ground at its centre, `southFooting` culls one
+  whose ground falls > 0.45 m within its roots' reach (inside the 0.5 m skirt), live-seated mids are audited
+  live, and the culls feed no in-loop rejection (`whiteClearance` / `drawnSwaps`, per-tree `toeStream`) so no
+  later stream re-rolls (`F_canopy` was 3.1 % changed by a mid-grove re-roll; now bit-identical).
+  `westExpansionCull` = the round-49 rules alone, so trees in the overlap of both boxes obey both.
+- Verified on `8b64880f`: tests 93/93 world (32/32 trees + structures) + 30/30 other; all 71 audits and 4 probes
+  pass, tree bases 159/160 (the miss is the southwest giant's round-49 root contact, 3.1 cm), litter 373/374
+  (pre-existing miss); the walk reaches the log (21/21 waypoints, 51.7 m, max camera 8.9 m/s) and 41/41 probes
+  pass, including all 18 off either side of the deck blocked. Hero cameras at 1280×716: A, B, E within 1/255, D and
+  F bit-identical, C 2.25 % of pixels > 16/255, all in the backdrop between the trunks (452 → 511 draws, 6.41 →
+  6.94 M; reference SSIM 0.1796 → 0.1768; W37 already fails at 0.42). Merged onto `81430baf` (scratch, not
+  pushed): conflict-free, typechecks, 129/129.
+- For the integrator: on the head, `39e63437`'s 40/44 m near-base band draws the south giants' bark bases from the
+  bridge (on this branch their far roots still show the lime moss sheets past 13 m, pre-existing, lane 3's shading);
+  the south structures keep their pods separate (six swinging pivots, 12 draws with shadows) like every village pod.
 
 ## Pending corrections from reference/ANALYSIS.md (apply at integration, one commit)
 - `config.ts` palette → olive/khaki low-key (reference hero frames: hue 47–51°, sat 0.16–0.19,
@@ -2810,4 +3110,4 @@ Pick anything NOT claimed in `gauntlet/claims.json`. Good self-contained candida
   my own (GAUNTLET.md D7).
 
 ## Last updated
-2026-09-21T17:45:00Z
+2026-09-24T03:00:00Z

@@ -16,6 +16,839 @@ B 526 / C 393 / D 394 / E 526 / F 512; A 9.09 M tris on both (the head's number,
 change's — flagged to fable-cursor). Files: `ledge2-x-clearing-n.jpg` (+ `-crop`),
 `ledge2-x-ledge-foot.jpg`, `ledge2-x-northpath-n.jpg`.
 
+## Iteration 84 — the earth treads' tint × 1.15 and the read from the plaza (the demo's `d_010` view); re-measured on the merged head `76fef8a6` (squad lanes 1–5 in): A −0.0002, C −0.0012, F +0.0004 — and the head itself now renders A at 9.15 M triangles / 599 draws, over W38's 9.0 M
+
+`d_010` (the demo, the flight seen from the plaza) against ours from the same spot (`steps84-d010-view.jpg`): the demo's flight
+alternates pale treads and dark log risers; ours alternates lit log crowns and darker treads — the light, not the material
+(the canopy shades our upper treads; fable-5's read). The earth's albedo is the half I hold: `EARTH_TINT` × 1.15
+(2.24 / 1.98 / 1.52), still under the demo's tread value in shade and not chalky at 2 m (`steps84-tint-triple.jpg`: stone |
+earth | earth × 1.15 at `s2-top-down`, the 2 m tread pose and the plaza view). At A the flight box moves a hair toward the
+frame: dark 53.3 → 52.9 %, lips 77 → 78 (frame 15.7 % / 100).
+
+The branch carries the head `76fef8a6` merged (fable-cursor's rule for squad lanes), so the pair is re-measured there —
+`76fef8a6` (stone treads) → `55b791a1` (earth × 1.15): **A 0.2047 → 0.2045 (−0.0002, 0.22 % of pixels), C 0.1834 → 0.1822
+(−0.0012, 0.66 %: the flight's foot at C's left edge), F 0.2169 → 0.2173 (+0.0004, 0.26 %)**; B / D / E do not see the flight
+(0 / 0 / 11 px at §83's base). Draws and triangles are the head's: **A 599 draws / 9.15 M triangles** — the squad's mid-canopy
+and understory took A from 8.55 M (`73402409`) over W38's 9.0 M ceiling; C 473 / 6.77 M, F 550 / 7.99 M. Not mine to cut;
+flagged to fable-cursor. A frame here now takes ≈ 680 s to render at A (was 350).
+## Iteration 88 — lane 6, the perf pass: the flagstones stop casting shadows — camera A 9.15 → 8.97 M (back under W38's 9.0 M), the frames unchanged (A +0.0001, E 0; 0.1 % of pixels by ≤ 40 levels, hairlines on the joints' sunward sides)
+
+fable-cursor's 12:55: "perf is next after the owner's visual asks"; my §87 map put the shadow pass at 3.03 M of A's 9.15 M
+and hardscape's at 0.23 M. The paving's share of that is a shadow-pass draw of the whole plaza + north + expansion meshes for
+slabs that stand 6–10 cm proud of a fill the shader already paints dark (the seam soil, the stain band, the mottle): each
+slab's own shadow bought a hairline on the sunward side of its joint. `flagstones.ts`: `mesh.castShadow = false` (the north
+and expansion meshes copy the flag; the stairs, kerbs, cheeks and the timbers keep casting).
+
+Before `be123deb` → after `ad0b3f68` (`paving88-noshadow-sheet.jpg`: E's and A's plaza foreground ×2.5, before | after | changed
+pixels):
+
+| view | before | after | Δ | changed px (> 8 / > 40) | draws / triangles |
+|---|---|---|---|---|---|
+| A_stairs | 0.2035 | 0.2036 | +0.0001 | 1 098 / 0 (0.12 %) | 597 / 9.15 M → 596 / **8.97 M** (−180 K) |
+| E_ground (≡ B) | 0.1946 | 0.1946 | 0 | 779 / 0 (0.08 %) | 589 / 8.30 M → 588 / 8.11 M (−190 K) |
+| C_lookback | 0.1794 | 0.1795 | +0.0001 | 1 003 / 0 (0.11 %) | 472 / 6.77 M → 471 / 6.59 M (−180 K) |
+| D_log | 0.2430 | 0.2430 | 0 | 343 / 0 (0.04 %) | 557 / 8.53 M → 556 / 8.34 M (−190 K) |
+| F_canopy | 0.2159 | 0.2160 | +0.0001 | 1 178 / 1 (0.13 %) | 547 / 7.99 M → 546 / 7.81 M (−180 K) |
+
+`tsc` green, hardscape tests 9 / 9. The joints keep their darkness (the fill's paint, not the slabs' shadow); at A the only
+pixels that move are the hairlines along the sunward edges, none by more than 40 levels.
+## Iteration 103 — lane 2 for the trailer's waterfall ruins: the ledge builder at cliff scale (`agent/fable-2-cliff-scale` @ tip)
+
+The owner's 10:58 ("build out the other places to visit from the video trailer"): the waterfall ruins (`review46/r_036–r_043`) are
+6–12 m grey rock walls in thick beds with ivy, mossy stone shelves over pools, terraces and a stair to a ruined arch — a rocks-and-
+hardscape place. fable-cursor is building `exp-ruins`; the rocks lane's preparation is `RockLedgeDef.scale` (opt-in, default 1: the
+north terrace's face hashes byte-identical): beds, blocks, panels, the mass swell and the parting depths grow with it, and above 1
+the beds warp and pinch along the run, the partings break, the joints wander, and buttresses with deep vertical fissures carry the
+face — the first cut at scale 3 read as masonry courses (left), the second as bedded rock (right). `?rockLedgePreview=cliff` stands a
+9 m × 25 m sample on the north clearing's west slope (34 K triangles, 181 columns × 96 rows, 0.3 s to build), never in a capture.
+When the ruins' layout names its walls (`rockLedges` entries with `height` and `scale`), this is what they get; pool rims, a flat
+mossy shelf (the rock Link stands on in r_036) and the terrace stair are the next pieces I can cut once the landform is there.
+
+![cliff preview](rocks103-cliff-preview.jpg)
+
+## Iteration 102 — lane 6: W02 back in band — the hero flight is 20 × 0.27 × 0.54 again, the stone stays (`agent/fable-2-w02-treads` @ `36d722fa`)
+
+fable-cursor 11:05: CI's gauntlet failed W02 ("Hero stairway: 18 worn stone steps", audit 16–20) since stairs-look's 26 treads;
+"keep the value / wear / nosing work — bring the flight back to the reference's 18 treads (the rise per step follows), re-check the
+stair walk and A's frame". Done at **20 × 0.27 × 0.54** rather than 18 × 0.30: the same envelope (run 10.8 m, rise 5.4 m, the top
+tread and the W04 probe where they were), inside W02's band, and under the 0.28 m step guard Astra's whole-leg study set — 18 × 0.30
+is over it (the layout's own history at `layout.ts` 'main'). Only `layout.ts` and `paving.test.mjs` change: the tread-nose pins are
+take-0123's 20-step values again, exactly — the stream is the flight's, so the 20-step noses came back to the millimetre.
+
+| | head `b306d6a9` (26 × 0.208) | 20 × 0.27 |
+|---|---|---|
+| W02 audit `stairways[id=main].steps` | 26 (fail) | **20 (pass)** |
+| A / C / F draws, triangles | 638 / 8.87 M, 570 / 7.93 M, 598 / 8.01 M | 639 / 8.86 M, 571 / 7.92 M, 599 / 7.99 M |
+| A / C / F SSIM | 0.2014 / 0.1878 / 0.2105 | 0.1945 (**−0.0069**) / 0.1849 (−0.0029) / 0.2168 (**+0.0063**) |
+| s2-owner box dark / mean l / sat | 29.9 % / 0.326 / 0.333 | 31.6 % / 0.324 / 0.346 |
+| `playtest --only stairs,climb` | — | main up 255 frames, 0 stalls, rise 0.27 / frame, sole gap p95 2.2 cm, end (13.74, 4.32, −5.12) — the same trace as pass 2's 20-step run; south bank up / down 0 stalls; tread span 0.09 % > 3 cm (max 0.125), nose zone 37.5 % |
+
+Read: the 26-step flight bought A +0.007 of frame likeness (the reference's many thin nosings) that the 20-step gives back, and F
+gains 0.006 the other way; the stone's value holds at the owner's pose (dark 32 %, mean 0.32). W02 is fable-cursor's call against the
+owner's "many shallow treads" read — the branch is the W02 answer with the stone kept, as asked. 105 / 105 tests.
+
+![26 vs 20](steps102-w02-pair.jpg)
+
+## Iteration 100 — lane 6: the hero flight's risers' shade and warmth, and where the dark actually is (`agent/fable-2-riser-shade` @ `7649f308`)
+
+fable-5 §26 on the landed stone value: "what is left is the risers' shade (p10 0.198 vs the reference's 0.264) and a touch of warmth
+(sat 0.36 vs 0.27)". The cut (stone hero only): risers × 2.3 and bluer (0.9 / 1 / 1.24), the fronts' shading normal nearer the sky
+(0.6 → 0.72), the stone cooler (tops 0.83 / 1 / 1.3, fronts 0.9 / 0.93 / 1.02), grime 0.65, foot stain × 0.4. Same draws and geometry.
+
+| | head `b306d6a9` | + cut | reference d_014 |
+|---|---|---|---|
+| s2-owner box dark / pale / mean l / p10 | 29.9 % / 14.7 % / 0.326 / 0.207 | **27.8 % / 15.2 % / 0.331 / 0.211** | 5.3 % / 23.1 % / 0.384 / 0.267 |
+| s2-owner stone sat | 0.333 | **0.310** | 0.27 |
+| A flight box dark / mean l | 24.6 % / 0.339 | 24.0 % / 0.341 | — |
+| six views | — | A −0.0003, F +0.0002 (0.3–0.4 % of pixels) | — |
+
+Small and clean — and the mask says why it is small: the pixels under 0.25 in the box are **the upper flight and the right flank's
+ferns**, not the risers (right panel). The lower flight sits in the sun corridor and is already in the reference's band; the upper
+flight climbs into the plateau's and the canopy's shade, where no stone albedo brings p10 to 0.264 — that is light (the trees' shadow
+over the top of the flight; lanes 1 / 2), as the D boulder's darkness was in §63. Offered as a finishing cut; the p10 residual is
+named for its owners.
+
+![riser shade](steps100-riser-shade.jpg)
+
+## Iteration 98 — lane 2 for the new south area: the ravine's walls take stone (`agent/fable-2-ravine-rock` @ `02586843`)
+
+The owner's 06:07 rubric scores every new area on 50 checks ("the outline is irregular and hand-built", "stone as stone",
+"weathering follows exposure"). Expansion-south's gorge (fable-cursor, 04:25) is carved ground painted rock-and-moss by the splat,
+and from the deck and the rims its 9 m walls read as smooth brown banks. `rocks/ravine.ts` puts stone into them, read entirely
+through the gorge's own analytic profile (`ravineProfile`, `bridgeLocal` — no layout or terrain file touched):
+
+- **outcrops**: bedded shelves (rockgen `strata`) 1.6–2.8 m across, a thick bed flattened on the vertical, long axis along the
+  gorge's strike, sunk into the wall along its horizontal normal so half protrudes; mid-wall (depth 0.26–0.74), one bucket of 4.4 m
+  along each wall with one in four left bare; pale grey against the brown wall, moss on the upper side, damp below;
+- **floor boulders**: 1.5–2.7 m, moss-capped, half-buried on the channel's shoulders in the mist, one per 6.5 m with a third skipped;
+- nothing within 2.6 m of the bridge axis at the lips or on the floor under the deck's line, nothing on paving or a structure, the
+  shallow ends (< 3.5 m deep) stay soil. 20 outcrops + 8 boulders, **one mesh, 94.6 K triangles**, seated on the live gorge;
+  toggled by expansion locality's spheres AND a 26 m distance gate to the gorge's box (camera C's frustum reaches the spheres from
+  38 m: without the gate it paid +10 draws / +210 K for a frame that did not change by a pixel).
+
+Two false starts, for the record: the first cut sank the shelves along the terrain normal, toned them like the splat and sized them
+1.2–2 m — from the deck they did not read at all (0–1.9 % of pixels); and the candidate scan read `prof.hit` after `T.mask()`, whose
+own profile query overwrote the shared scratch — a build was not deterministic until every field was copied out first
+(`ravine.test` pins it). Tests: `ravine.test.mjs` (5 — attributes and casters, every seat inside the gorge on its band off the
+bridge frame, casters conservative, no hero camera draws it while a walker on the deck does, deterministic); 105 / 105.
+
+| pose | pixels > 8 levels | > 40 |
+|---|---|---|
+| rv-west-rim `[−7,3.2,35.5] → [4,−1.5,38.5]` | 1.3 % | 0.1 % |
+| rv-deck-west `[4.3,1,37] → [−8,−4,38.5]` | 2.8 % | 0.5 % |
+| rv-deck-east `[3.9,1,36.6] → [16,−4,36]` | 2.2 % | 0.1 % |
+| rv-north-rim-down (the rim's own boulder fills it) | 0 | 0 |
+
+Camera C (the only hero view that faces the south), against the branch's own base `92a4fd66`: **568 draws / 7.70 M on both**,
+SSIM 0.1878 → 0.1878, 0.00 % of pixels; A–F otherwise untouched by construction (the mesh is off outside 26 m of the gorge). (A
+first read against the older `8ee50f7d` showed C +8 draws / +20 K — those were fable-3's south props merged in between, not the
+rock; the head itself captures at 560 / 7.68 M twice, so the harness is stable to the draw.) Offered to fable-cursor as the rocks lane's part of the new area — denser
+shelves, scree at their feet or a root-and-rock wall under the bridge heads are the next knobs if the area's rubric row wants them.
+
+![ravine rock](rocks98-ravine-sheet.jpg)
+
+## Iteration 97 — the stone value on the merged head, at the flight's own poses (verification only)
+
+`8ee50f7d` (stairs-look + §96 + the second wave) against stairs-look alone, stairs-look's poses: **s2-approach** flight box
+(0.30–0.62 × 0.30–0.95) dark 47.5 → **20.1 %**, pale 9.2 → 18.5 %, mean l 0.271 → **0.344**, p10 0.137 → 0.219 — the flight climbs into
+the light as the reference's does; **s2-climb** (0.35–1.0 × 0.55–1.0, the bough and the ferns inside the box) dark 59.8 → 45.8 %, mean
+0.238 → 0.281. The bough across s2-climb's left third is in both builds (the pose stands under the giant's limb; stairs-look's own
+capture of that pose framed it into a corner) — not a regression of the second wave.
+
+![approach and climb](steps97-approach-climb.jpg)
+
+## Iteration 96 — lane 6: the hero stone flight's value up into the owner's reference band (`agent/fable-2-stone-value` @ `f90821e8`, on top of `agent/stairs-look`)
+
+The owner (23:00) sent the real game's main stairway as the reference for the hero flight (`pass5/owner-2300-reference-stairs.png`,
+`demo61/d_010–d_016`: many shallow worn-stone treads, thin wavy nosings catching light, **pale**). `agent/stairs-look` (`f5015962`,
+in squad4's integration candidate) took the hero flight back to stone — `main` off `LOG_FLIGHTS`, 26 × 0.2077 × 0.4154 in the same
+envelope, a two-octave nosing wander — and fable-5 §24 measured it right in kind and wrong in value: at `s2-owner` dark 51.5 %, luma
+0.278, p10 0.125, sat 0.39 against the reference's 7 % / 0.363 / 0.264 / 0.27; "the stone's value up into that band (tread tops and
+risers), the nosings the brightest line, the light on the slope kept". The earth-and-timber work stays right for the ledge flight.
+
+Where the dark was: with 26 shallow steps the fronts are most of what the plaza sees, and each front was round 31's device for a
+20-step flight — the slab's own face at × 0.5 (lum 0.09 in the shade), a 0.38–0.46 riser in the slab's shadow — a black bar on every
+tread. `stairs.ts`, the hero stone flight only (`stoneHero = isMain && !logNosed`; house-west and the expansion flights untouched,
+the ledge flight's earth untouched): the tread fronts at 0.9 / 0.92 / 0.98 of the top with a sky-leaning normal (0.6), the risers × 2
+and cooler (0.93 / 1 / 1.18), the tops × 1.15 and cooler (0.85 / 1 / 1.26 — the flight's tenth applies to the tone stream, so a log
+build of the flight carries the same `treadTone`), riser grime 0.75, foot stain halved. The nosing stays × 1.35–1.5 of the top; the
+foot → top gradient (V17) is untouched — the paving test's top / foot ≥ 1.2 and top ≤ 1.05 hold. Same draws, same geometry: A 641 /
+8.93 M on both builds.
+
+| pose / box | stairs-look `e6605f67` | + stone value `f90821e8` | reference |
+|---|---|---|---|
+| s2-owner flight box (0.50–0.88 × 0.22–0.78) dark / pale / mean l / p10 / p90 | 59.4 % / 8.3 % / 0.250 / 0.115 / 0.430 | **33.1 % / 13.9 % / 0.320 / 0.200 / 0.486** | d_014 5.3 % / 23.1 % / 0.384 / 0.267 |
+| s2-owner stone hue / sat | 50° / 0.362 | 53° / 0.332 | — / 0.27 |
+| A flight box (0.60–0.92 × 0.25–0.70) dark / pale / mean l | 42.3 % / 14.0 % / 0.299 | 26.3 % / 18.4 % / 0.334 | — |
+| w-d010 box (0.55–0.95 × 0.25–0.75) dark / mean l | 62.3 % / 0.251 | 58.5 % / 0.259 | — |
+
+Six views against stairs-look itself (`/tmp/cap-sv96base` → `/tmp/cap-sv96c`): **A −0.0043 (0.2058 → 0.2015), C +0.0001, D 0,
+F +0.0014**; pixels > 8 levels A 4.9 %, C 0.8 %, D 0, F 5.5 %. For scale, stairs-look moved A from the head's 0.1813 to 0.2058 — the
+stone flight's kind is worth +0.024 at A, and this value lift gives 0.004 of it back while the flight box moves toward the frame in every
+value number. SSIM's structure term likes the black bars; the owner's frame does not have them. A look call for fable-cursor with the
+candidate. Two cuts on the way (README's record): fronts at 0.82 / normal 0.35 / risers × 1.75 / tops × 1.1 read dark 41.1 % / 0.299;
+the landed cut is the second, and the third only cooled the stone (sat 0.354 → 0.332). 97 / 97 tests on the branch (the candidate's
+re-pinned hardscape tests included).
+
+![owner pose vs reference](steps96-owner-pose-vs-reference.jpg)
+![stone value sheet](steps96-stone-value-sheet.jpg)
+
+## Iteration 94 — the owner's "stair nose zone" replicated on the CPU (analysis only; no source change)
+
+The owner's unfinished item 9: "the collision riser sits up to 10 cm behind the visible nose / timber; the root steps up late". A CPU
+replica of `playtest.mjs`'s stairs scenario (`/tmp/f2/nosezone.mjs`: `buildStairway` + `buildLogNosings` with the production seed and
+forks, a vertical ray per 1 cm sample on five lines across, `walk = base + rise·(⌊u/tread⌋+1)`) reproduces the owner's table on the
+head — tread span 0.0 % > 3 cm, nose zone **62.1 % / max 0.339 m** (owner: 63.1 % / 0.339) — and splits it: the 12 cm before each riser
+line 76 % (slab nose 6.5–9.5 cm + the timber's 10 cm reach; the max is 0.27 + the 6.9 cm crown), the 10 cm after the line 45 % (the
+crown over the tread's first 8 cm). Bringing the visible nose to the line (nose 2 cm, `LOG_FRONT` 0.04) trades the first for the second
+and the share would rise to ≈ 67 %: the metric measures the proud timber the owner approved. §92 left the numbers unchanged (62.0 %).
+Conclusion posted to fable-cursor / Astra: this is the collision side's call (the analytic riser line for log flights), not hardscape's.
+
+## Iteration 93 — the ledge flight on §92's geometry (verification only, no source change)
+
+The raised stair to the north ledge is `logNosed` too, so §92's three changes reach it. Two close poses of my own on the flight
+(`ledge-join-close` `[2.6,5.3,−72.9] → [1.5,4.9,−74.2]` fov 45; `ledge-face-low` `[1.2,5.0,−71.6] → [1.2,5.2,−74.7]` fov 46),
+head `393fce60` against `78d18fe1`: the dark slots under the second and third timbers (the overhang's ceiling and the recessed riser)
+are earth faces running down to the tread below; the split-tread joint on the face-on pose is gone. Pixels > 8 levels 13.6 % / 9.3 %
+(the flight is most of both frames), > 40 levels 2.1 % / 1.5 %. Nothing else in either frame moved.
+
+![ledge flight](steps93-ledge-sheet.jpg)
+
+## Iteration 92 — lane 6: the log flight's angular dark joins closed by geometry (`agent/fable-2-log-joint` @ `78d18fe1`)
+
+fable-cursor 18:10 (Astra's `s2-join-close`, PR #2 18:04): "large dark angular recesses under successive log nosings — the central
+wedges ≈ (675, 245) and (660, 423) — fix the geometry / normal / material / shadow cause, not the tone." Diagnosed on the CPU with a
+ray through the owner's camera into the flight's own builder (production seed and forks, `/tmp/f2/ray92.mjs`), then rendered at the
+same pose. Three causes, all stone-flight devices that are wrong in kind under a timber; the fix is `logNosed`-only in `stairs.ts`,
+the stone flights (house-west, expansion) are byte-identical, and every rng draw is taken in the stream's order so the log flight's
+composition — outlines, noses, tones, riser splits — is the one the head had:
+
+1. **The central wedges are the split treads' joints.** One tread in five is cut as two stones with a 2–4 cm joint (the pieces'
+   corner chips up to 9 cm either side of it). The ray at (676, 245) landed on step 5's tread 5 cm behind its nose on a wall facing
+   *across* the run — the far piece's joint wall, unlit — where the ray at (750, 245) beside it hits the front wall. Under the log the
+   joint is a black slot with a chipped, angular outline. Now: both pieces are still cut (the draws), their outlines are **joined**
+   across the joint (`joinOutlines`: each piece's joint end with its chips dropped, the two runs chained) and one earth tread is laid.
+2. **The recess under the slab.** Round 31's stone flight overhangs its riser by 7.5–10.5 cm ("a lit lip over a deep shadow line").
+   Under a log what showed beneath the belly was the overhang's unlit ceiling and the riser face in the dark. Now the log flight's
+   riser stands **3 cm behind the nose line** (0–5 cm under the slab's wandering edge, never proud of it by more than a chip) — the
+   face runs straight down from the timber to the tread below, as earth retained by a log does. The outline is cut at the stone depth
+   (jitteredRect's segment count follows the aspect, so the draws are the stream's) and stretched forward.
+3. **The rolled lip inside the log.** The 5–7 cm quarter-round with its shoulder 9–13 cm back sat inside the log's girth and peeked
+   out under the thinner logs as the "ragged white sliver" fable-cursor's pass 3 hid with `LOG_SHADED_LIP = 0.5`. A log tread has a
+   **1.2 cm edge** instead (no roll, no shoulder push-back) and the tone is gone, as asked.
+
+`stairs.test.mjs` (new, 4 tests): the stone build and the log build of the main flight share tones, noses and unsplit outlines; the
+riser stands within 5 cm of the nose under a timber and 4–11 cm behind it on stone; the log tread's top ring sits on its wall while
+the stone's shoulder is 5–18 cm back; no wall faces across the run inside the flanks on the log flight (the stone split's joint walls
+are the positive control). 97 / 97 tests. Draws and triangles unchanged on every view (A 692 / 8.87 M).
+
+| pose | before (head `393fce60`) | after `78d18fe1` |
+|---|---|---|
+| s2-join-close wedge 1 (658–694 × 234–256) / the face beside it | l 0.164 (flat) / 0.423 → contrast 0.39 | 0.277 / 0.300 → 0.92 (one textured face) |
+| s2-join-close wedge 2 (640–700 × 405–430) / beside | 0.217 / 0.317 → 0.68 | 0.255 / 0.260 → 0.98 |
+| s2-join-close dark blobs (l < 0.21, ≥ 300 px) | 41 | 34 |
+| s2-owner flight box dark / mean l | 42.3 % / 0.283 | 40.6 % / 0.288 |
+| pixels > 8 levels: join-close / ends-right / ends-left / owner / ledge foot | — | 36.6 / 16.2 / 17.8 / 9.0 / 16.5 % |
+
+Six views against the same head (`/tmp/cap92-base` → `/tmp/cap92-d`): **A −0.0008, B 0, C +0.0004, D 0, E 0, F −0.0007**; pixels > 8
+levels A 1.33 %, C 0.34 %, F 1.47 %, B/D/E 0. Determinism 0.00 %. A's flight box 34.9 → 34.7 % dark, mean l 0.303 → 0.306.
+
+Two wrong turns on the way, for the record: the first cut (riser forward with the outline cut at the new depth) *looked* right at the
+pose and was luck — jitteredRect's segment count changed with the depth, the stream diverged, and those treads simply were not split
+any more; the ray probe found the true cause. And §90's cooler earth tint was measured (A −0.0120 vs the warm cut's −0.0131: the SSIM
+cost is the band pattern, not the hue) after fable-cursor had already taken the warm cut at 17:20 — not needed.
+
+![join close pair](steps92-join-close-pair.jpg)
+![poses](steps92-poses-sheet.jpg)
+## Iteration 90 — the earth under the timbers, cooler (`23464406`; the warm cut stays at `3cc8ca96`)
+
+Pre-empting the likely reply to §89 ("a cooler earth under the timbers first"): the riser-band and tread-wall earth tinted toward the
+frame's grey-beige (vertex tint 0.72/0.76/0.86 on the wall, 0.74/0.78/0.88 on the riser stones — red down, blue up, value kept; the
+treads' earth unchanged). Both cuts sit on `agent/fable-2-earth-risers`: the tip is the cooler one, the parent the warm one — merge either.
+
+| build | s2-owner box dark / mean l | A flight box dark / pale / mean l | A lips / troughs | A stone hue / sat | A SSIM | F SSIM |
+|---|---|---|---|---|---|---|
+| base `56b54e15` (dark stone band) | 62.7 % / 0.231 | 49.3 / 4.1 / 0.262 | 78 / 64 | 43° / 0.41 | 0.1997 | 0.2154 |
+| warm earth `3cc8ca96` (§89) | 42.3 % / 0.283 | 34.6 / 10.4 / 0.302 | 84 / 76 | 45° / 0.43 | 0.1866 (−0.0131) | 0.2073 (−0.0081) |
+| cooler earth `23464406` (this) | 44.1 % / 0.280 | 35.3 / 10.4 / 0.300 | 83 / 75 | 45° / 0.43 | 0.1877 (−0.0120) | 0.2073 (−0.0081) |
+| demo `d_104` / frame targets | 41 % / 0.290 | — | 100 / 85 | — / 0.30 | — | — |
+
+Read: the SSIM cost is **structural, not tonal** — cooling the tint buys back 0.001 at A and nothing at F, because what the metric
+sees is the band pattern under every lip changing from dark stone to lit earth (2.9–3.2 % of the frame's pixels move at A/F either
+way). The saturation number does not move because the flight box is mostly timber and shaded earth; the cooler wall reads greyer at
+2 m (right column of the sheet) but the frame's 0.30 is out of reach through the riser tint alone. So the merge decision is exactly
+the one §89 posed: the walk's weight (dark share 63 → 42–44 %, mean l 0.23 → 0.28 at the owner's pose, the demo's 41 % / 0.29)
+against a −0.012 / −0.008 six-view move at A/F. The tint choice is taste; the cooler one is closer to the frame's band.
+
+![cooler earth triple](steps90-cooler-earth-triple.jpg)
+
+## Iteration 89 — lane 6: under the timbers the riser band is earth, not a dark stone face — fable-5's "the log faces and shaded tread fronts are the weight": at the owner's pose the flight's dark share 62.7 → 42.3 % (the demo's `d_104` 41 %), at A 49.3 → 34.6 % — but SSIM A −0.0131, F −0.0081: a look change for fable-cursor to name, NOT claimed landed
+
+fable-5 (12:52, lane 10): with the earth treads in, the flight at the owner's angle still reads 61 % dark against the demo's
+13–31 %, and the weight is "the log faces and shaded tread fronts". The tread's front face under each timber was the stone
+slab's wall at half the top's value, and the riser under it a dark stacked stone (0.38–0.46) — in the demo (`d_104`, ref-03)
+the band under a timber is the lower tread's earth meeting the log. `stairs.ts`, log flights only: the tread walls take the
+earth blend (`geometry.ts` `earthSides`), a tint at 0.8 of the tread's own and a shading normal a third toward the sky
+(`sideNormalUp` 0.35); the riser stones render as packed earth top and walls, at 0.8 of the tread's tone, the foot stain
+× 0.4. The stone flights are untouched; geometry, noses and contact unchanged.
+
+Before `56b54e15` → after `3cc8ca96` (`steps89-earth-risers-sheet.jpg`, `steps89-AF-reference.jpg`):
+
+| pose / box | before | after | the demo |
+|---|---|---|---|
+| `s2-owner`, flight box 0.50–0.88 × 0.22–0.78: dark (l < 0.25) / mean l | 62.7 % / 0.231 | **42.3 % / 0.283** | `d_104` (from above, shade) 41.2 % / 0.290; `d_010` (from the plaza, lit) 13.6 % / 0.367 |
+| the plaza view (`w-d010-flight`) | 51.6 % / 0.260 | **36.3 % / 0.294** | 13.6 % / 0.367 |
+| A's flight box (fable-5's): dark / pale / mean l, lips / troughs | 49.3 % / 9.7 % / 0.275, 78 / 64 | **34.6 % / 10.7 % / 0.302, 84 / 76** | frame 16.1 % / 14.2 % / 0.345, 100 / 85 |
+| A's flight box hue / sat (stone pixels) | 46° / 0.405 | 45° / 0.433 | 47° / 0.298 |
+
+| view | before | after | Δ | changed px |
+|---|---|---|---|---|
+| A_stairs | 0.1997 | 0.1866 | **−0.0131** | 27 422 / 16 305 (2.98 %) — the flight only |
+| F_canopy | 0.2145 | 0.2064 | **−0.0081** | 30 002 / 17 757 (3.26 %) — the flight only |
+
+Every luminance number moves toward the frame and the demo (the dark share a third of the way to the demo's lit read at the
+plaza; A's p10 0.148 → 0.183 against the frame's 0.225), the saturation away from it (the earth's warmth, 0.43 vs the frame's
+0.30), and the SSIM falls by 0.013 at A — the metric weighs the flight's band structure, and a flight of warm earth bands
+under grey timbers is not the frame's grey stone flight however close its value. Under the owner's 06:50 rule the walk is the
+measure and fable-5 asked for exactly this weight; under the loop's the frames hold within −0.003. So this branch is a
+proposal: fable-cursor names it a look change and merges, or asks for a cooler earth under the timbers first (a tint toward
+the frame's grey-beige would keep the lift and cost less saturation), or drops it. Not measured: B / D / E (no flight in
+frame), C (the flight's foot at the left edge, expected a few thousand pixels).
+
+## Iteration 85 — lane 6: the raised stair to the north ledge is log-risered too (`LOG_FLIGHTS` + `ledge`): the owner's ref-03 right-bank steps — round timbers with cut ends and stakes, earth between; A / D byte-identical
+
+`art/environment/owner-review-2026-09-19/ref-03-marked-arch-depth-and-right-steps.png`, the owner's right-hand circle ("it should
+be raised — this part of the game"): a raised stair on the right bank beyond the arch, and at 3× the crop is unambiguous — logs
+as risers, their cut ends and dark stakes at the flank, dark earth treads between (the same construction as the hero flight's
+`d_104`). Ours was the six-step `ledge` flight in the north clearing as stone slabs. One line: the flight joins `LOG_FLIGHTS`, so
+`buildLogNosings` gives it the timbers and stakes and `buildStairway`'s `logNosed` path gives it the shaded lip and §83's earth
+treads; the character's stair grid reads `stairs-ledge-logs` like the main flight's (ground.ts merges stone + timbers per flight).
+
+Before `0149f255` → after `fbd83042` (`steps85-ledge-flight-sheet.jpg`): from the clearing floor 1.6 m off the first riser, from
+3.3 m up at 35° and from the east at eye height — mossy pale slabs become six timbers with proud cut ends and stakes over pale
+packed earth. Six views: the flight stands 75 m north of the plaza; **A and D byte-identical** (sha256 equal), A 600 → 601 draws /
+9.16 → 9.17 M (the timber mesh's sphere enters the frustum, no pixel), D 554 → 556 / 8.52 → 8.53 M. `tsc` green, hardscape tests
+9 / 9 (`logNosings.test` asserts `main`; `ledge` added).
+
+Walked (`playtest.mjs --only walk --walk-routes north-clearing-ledge`, the plaza → under the arch → the clearing → up this flight,
+82.4 m, 1 572 frames, head vs branch): 15 / 15 waypoints, 0 stuck on both, the climb trace identical to the centimetre (y 4.04 →
+5.62 over the six steps); the boots' sole gap p50 0.4 → 0.4 cm, p95 2.6 → 2.7 cm, max 4.5 → 5.6 cm (one sample on a timber's
+crown), the footprint's lowest point never below −2.1 cm on either. The timbers carry the walker as the main flight's do.
+
+## Iteration 83 — lane 6 (fable-cursor's 07:30 fit): the demo's log-risered steps, first half — the hero flight's treads are trodden earth between the timbers, not stone slabs (`aEarth` on the slab tops, the stone shader renders trail dirt there); six views A −0.0002, C −0.0009, the rest 0
+
+The owner's references for "the steps" (`docs/SQUAD_2026-09-23.md` lane 6): the demo's walk north, `demo61/d_094` and `d_104`
+— round timbers as the risers, packed pale earth with grass at the edges between them. Ours were stone slabs with a log on
+each nose: from eye level the logs hide most of the tread, but from above (the owner's camera looks down 35° while he
+climbs) the pale grey slabs with their rolled lips and split outlines were the read.
+
+Built without touching the geometry: `MeshBuilder` carries an `aEarth` weight (`geometry.ts`, `SlabOptions.earthTop` writes
+it on the top face and the shoulder ring; the walls stay 0), and the stone material (`material.ts`) blends the surface to
+the terrain's `rocky_trail` set where it is 1 — the trail texture at 0.9 m repeats, its albedo lifted to the demo's pale dry
+dirt (`EARTH_TINT`), under the same vertex tint as the stone (the tread's tone gradient, grime, damp), its own normal for the
+grit, a matte roughness. `stairs.ts` sets `earthTop: 1` on a log flight's treads and drops the lit-nose lip from their tint
+(the timber is the nose; the walked centre a shade paler, the back and flanks damper). Draws, outlines, tread noses and the
+contact surface are unchanged (`paving.test` V17 / tread-nose rows pass); `rocky_trail` is CC0 (Poly Haven), credited.
+
+Before `73402409` → after `7fcb33cf` (`steps83-earth-treads-sheet.jpg`: `s2-top-down`, the 3.3 m look-down `ld-flight-down`, the 2 m
+`x-stairs-3rd-tread`; `steps83-C-foot.jpg`: the flight's foot at C):
+
+| pose | what the eye gets |
+|---|---|
+| `s2-top-down`, `ld-flight-down` (from above) | grey slab tops with rolled lips → pale sandy earth with grit between the timbers, the tread outlines gone |
+| `x-stairs-3rd-tread` (2 m) | the band behind each log is packed dirt, not a stone lip |
+| `s2-owner`, `s2-climb` (eye level) | the timbers hide most of the tread; the bands that show turn from grey to earth |
+| tread band vs the demo (`d_104`, a tread in light) | ours sRGB 83 / 72 / 54 (R/G 1.15, B/R 0.65) against the demo's 82 / 69 / 57 (1.18 / 0.70) |
+
+| view | before | after | Δ | changed px |
+|---|---|---|---|---|
+| A_stairs | 0.2190 | 0.2188 | −0.0002 | 1 553 (0.17 %) — the flight's tread bands; the flight box's dark share 51.5 → 51.3 %, lips 78 = |
+| B_house | 0.1877 | 0.1877 | 0 | 8 |
+| C_lookback | 0.2038 | 0.2029 | −0.0009 | 6 047 (0.66 %) — the flight's foot at C's left edge, 3–4 m: the first treads now earth |
+| D_log | 0.2560 | 0.2560 | 0 | 0 |
+| E_ground | 0.2178 | 0.2178 | 0 | 11 |
+| F_canopy | 0.2252 | 0.2254 | +0.0002 | 1 881 (0.20 %) |
+
+Draws / triangles unchanged (545 / 533 / 434 / 499 / 533 / 507; A 8.55 M). `tsc` green, hardscape tests 9 / 9. Not done in
+this half: the demo's flights have no stone cheeks (grass banks meet the timbers' ends) and the timbers' cut ends stand proud
+with stakes — the cheeks are a geometry change to measure next; the path fork into the woods (lane 6's second item) needs
+fable-cursor's word on the layout before I move anything.
+## Iteration 82 — the hero boulders' near skin holds to 13 m (`HERO_NEAR_FADE_M` [7, 13], the dressing's band): the owner's walk-around range, under his 2026-09-23 06:50 direction that the walk beats the fixed frames — six views within ±0.0004
+
+The hero material's near terms (near tile, relief grain, wet band, crack grime) faded out over material.ts `NEAR_FADE_M`
+[4, 6.3] — set so camera D (7.22 m from the D boulder) rendered the plain far look. The far meshes share the material, so
+that bound also put every hero rock at the smooth far skin at exactly the 6–13 m a walker sees them from (the near kit's
+geometry stays in to `NEAR_ROCK_IN_M` 12 m, its skin faded): the owner's "stones under-detailed at 5–20 m", answered in
+§56 for the dressing sets only. With the walk now the owner's measure (`docs/SQUAD_2026-09-23.md`: "the owner's walk-around
+quality now beats the old fixed-frame gauntlet scores … say if a change moves the six hero views a lot"), the heroes take the
+dressing's band. One constant, two materials (`heroMaterial`, `stairFootMaterial`), the audit's `fadeM`.
+
+Before `1394d49d` → after `d51d3f84`, both rendered here (`--settle 10` poses, `--settle 12` views):
+
+| pose | distance | changed px (> 8 / > 40) | box read (mean l / macro σ / micro σ) |
+|---|---|---|---|
+| `w-shotd-7m` (the D boulder from the path) | 6.9 m | 9 250 / 334 (1.00 %) | 0.295 / 0.053 / 0.058 → 0.305 / 0.052 / **0.061**; the loaf becomes knapped plates over a damp foot |
+| `w-stairfoot-9m` (from the plaza) | 8.9 m | 10 390 / 1 450 (1.13 %) | 0.370 / 0.070 / 0.094 → 0.385 / **0.081** / **0.101**; plates and pale crust where a smooth pale blob stood |
+| `w-shotd-10m` | 10.2 m (skin weight ≈ 0.4) | 2 104 / 0 (0.23 %) | 0.290 / 0.032 / 0.032 → 0.303 / 0.035 / 0.032 |
+| `w-terrace-10m` (the terrace boulder from the north path) | 10.8 m | 86 / 0 | the bank's ferns hide it from that path — no read |
+| `x-southbank-toe` (control: the dressing pair) | 6.8 m | **0** | unchanged by construction |
+
+| view | before | after | Δ | changed px | what |
+|---|---|---|---|---|---|
+| A_stairs | 0.2266 | 0.2267 | +0.0001 | 2 710 (0.29 %) | the stair-foot rock at ≈ 9 m |
+| B_house | 0.1960 | 0.1957 | −0.0003 | 3 724 (0.40 %) | the D boulder at the left edge |
+| C_lookback | 0.2047 | 0.2046 | −0.0001 | 289 (0.03 %) | the bank anchor |
+| D_log | 0.2675 | 0.2673 | −0.0002 | 9 887 (1.07 %, one > 40) | the D boulder at 7.2 m |
+| E_ground | 0.2183 | 0.2183 | 0 | 3 724 | B's frame |
+| F_canopy | 0.2261 | 0.2257 | −0.0004 | 3 510 (0.38 %) | the stair-foot rock at F's foot |
+
+Draws and triangles unchanged (545 / 533 / 434 / 499 / 533 / 507; A 8.54 M). Tests 28 / 28, `tsc` green. `herofade82-sheet.jpg`:
+the three walk poses and the A / B crops, before | after.
+
+## Iteration 80 — the rocks from the play camera's new look-down (six poses): nothing floats, no LOD seam; the one read I chased — the D boulder's face as a "diamond weave" from above — was the beds crossing the fine network, not a lattice: `crackWarp` built, measured, NOT landed (`743f1454`, reverted by `a1782588`)
+
+The owner's camera now looks down 35° (nearest surface ≈ 3 m), so a walker sees the rocks from above at 3–5 m — a
+range no fixed frame and no survey pose covers. Six poses on `59c0f961` at eye 3.3 m over the ground, 35° down, 4.4 m to
+the aim point (`lookdown80-sheet.jpg`): the plaza fringe pebbles, the stair-foot skirt and boulder, the D boulder, the
+south-bank pair from the flight, the ledge from the terrace, the north path's pebble tiles to 13 m. Pebbles and shards sit
+on the ground, the tile LOD shows no seam at 10 m, the skirt and the pale pair read as stone; the blocky kerbs are the
+flights' cheeks (hardscape). One read: from above at 4.4 m the D boulder's lit face looked like a woven basket — regular
+diagonal lines crossing.
+
+Hypothesis: gradient noise is zero at every lattice node, so the `ridged` zero contours the cracks are drawn on run node
+to node and form a lattice. Built as `crackWarp` (rockgen option, default 0, far build byte-identical — asserted; the
+sample point of each network bent by three low-frequency noises, ≈ 0.3 of the network's cell rms), on for the hero near
+kits, the skirt shards and the dressing rocks. It works as a warp: on the D near kit 85 % of the line vertices move to
+other vertices at the same density (crack share 11.8 → 12.1 %), vertices move ≤ 2 cm (the furrows); 4–10 % of the pixels
+change at the seven poses (`warp80-shotd-triple.jpg`, before | after at 2 m, 2.4 m down and the 4.4 m look-down). At A the
+warped build moves 193 px (0.02 %) — the skirt shards' near kit is inside A's range; the hero far meshes are identical.
+
+Measured, the lattice is not there to remove. The crack field on a flat 60 cm slice of the D noise (`warp80-crackplane-pair.jpg`)
+is already irregular before the warp — the 3D noise is three sheared planar noises summed, and their nodes do not line up.
+On the renders the 2D spectrum's ring (the line spacing) keeps its angular concentration through the warp — 71 → 72 % of
+the ring's power in three 15° bins at `x-shotd-down`, 64 → 65 % at the look-down, the spectral peak the beds' spacing — so
+the regular diagonals are the **bedding bands** (by design: the frame's D rock is bedded) crossing the fine network at a
+glancing angle. The warp changes the cracks' course (curvier) with no measured defect behind it — a look change nobody
+asked for, the day before the deadline: reverted on top; the implementation and its test stay in the branch's history.
+
+## Iteration 79 — fable-cursor's all-lanes ask (03:25): the rocks lane re-verified on the head `59c0f961` (owner review 2026-09-23) against `47773f13`, the build the owner played — rocks pixel-identical everywhere they show; the six views within −0.0007
+
+`src/world/rocks/**` has no commit between the two builds; what changed under the rocks is shared: the play camera (never
+under capture), the near-fade program keys, the lantern frames and the west house's light, the distant crowns' fade from
+below, and — in my hardscape module — the hero flight's logs (`d4f1feec` + `3b37b8b7`). Both builds rendered here at
+`--settle 12`, character as the take has it. Tests (rocks + hardscape) 37 / 37, `tsc` green on the head.
+
+| view | before `47773f13` | head `59c0f961` | Δ | changed px (> 8 / > 40 levels) | draws | triangles |
+|---|---|---|---|---|---|---|
+| A_stairs | 0.2239 | 0.2232 | −0.0007 | 36 393 / 11 654 (3.95 %) — 31 523 of them in the flight box | 474 → 476 | 8.61 → 8.67 M (+60 K) |
+| B_house | 0.1963 | 0.1961 | −0.0002 | 1 883 / 212 (0.20 %) — the pods | 462 → 464 | 7.89 → 7.95 M |
+| C_lookback | 0.2045 | 0.2046 | +0.0001 | 6 230 / 1 713 (0.68 %) — the flight's logs at the left edge, the lanterns | 368 → 368 | 6.82 M |
+| D_log | 0.2673 | 0.2675 | +0.0002 | 610 / 115 (0.07 %) | 428 → 430 | 8.05 → 8.09 M |
+| E_ground | 0.2179 | 0.2181 | +0.0002 | 1 880 / 212 (0.20 %) | 462 → 464 | 7.89 → 7.95 M |
+| F_canopy | 0.2232 | 0.2253 | **+0.0021** | 39 837 / 12 787 (4.32 %) — the flight | 438 → 440 | 8.05 → 8.09 M |
+
+Where the rocks are in those frames nothing moved (`rv79-sixviews-rocks.jpg`, before | head | mask): A's stair-foot skirt
+(box 0.55–0.80 × 0.70–1.0) **0 px**, the plaza's paving and pebbles (left half below 0.5) 7 px, the D boulder (0.04–0.18 ×
+0.66–0.84 and the wide 0.05–0.30 × 0.50–0.80) **0 px**, E's paving and pebbles below 0.6 14 px, F's flight foot below 0.75
+0 px. The A flight box (fable-5's) reads **51.4 % dark / 7.5 % pale / mean l 0.264, lips 78 / troughs 63** on the head —
+the same numbers as `d4f1feec` alone (§78): `3b37b8b7`'s repaired pair and checked crowns move 0.64 % of the box's pixels
+and none of its shares at a tenth of a percent. Before, the tint's 44.1 / 12.7 / 0.291, lips 92 / 66.
+
+The rocks poses, same two builds (`node pose.mjs --settle 12 --audit`):
+
+| pose | changed px > 8 / > 40 | where | rocks census (meshes / instances) | pebble LOD low tiles |
+|---|---|---|---|---|
+| `sn-boulder-shotd` (D boulder, 2 m) | **0 / 0** | — | 66 / 3 395 = | 14 of 20 = |
+| `sn-boulder-stairfoot` (skirt, 2 m) | 80 / 0 (0.01 %) | the flight's first log at the top-right corner; the skirt 4 px | 66 / 3 355 = | 13 = |
+| `x-ledge-wall` (3 m) | **0 / 0** | — | 66 / 3 330 = | 20 = |
+| `x-southbank-toe` (the pale pair, 6.8 m) | 5 126 / 45 (0.56 %) | a grass tuft at the frame's foot (3 191 px in one cell, max Δ 72) and a far bough; **the pair 20 px of 67 064** | 66 / 3 330 = | 17 = |
+| `x-clearing-n` (ground eye) | 4 691 / 0 (0.51 %) | all above the horizon — the ring's crowns (`e48d5e8e`); below it 28 px, the stone box 0 | 66 / 3 330 = | 20 = |
+| `w23-stairs-f` (the flight) | 340 368 / 155 346 (36.9 %) | the logs | 66 / 3 347 = | 13 = |
+| `x-stairs-3rd-tread` (2 m) | 440 968 / 233 190 (47.9 %) | the logs (`logs79-flight-pair.jpg`) | 66 / 3 335 = | 14 = |
+
+B3 on the head: rocks instances 3 330–3 395 by pose against the 3 151 claimed; the pebble tiles' `mergedInstances` census and
+the LOD swap unchanged. Verdict for fable-cursor: rocks needs no retune on this head; the lane's open offer stays §78's
+`LOG_TINT` balance (the timbers' individuality does not need their darkness — A's flight box at 51 % dark vs the frame's 16 %).
+
+## Iteration 78 — the owner's "repeated pattern" on the hero flight: `d4f1feec` (the owner-side agent's rewrite of `logNosings.ts`) checked at A / C / F and at 2 m — the right fix in kind, 60 % of the tint's A value given back
+
+Owner review 2026-09-23: "the first staircase looks natural, the second has an obvious repeated pattern" — the twenty log
+nosings: near-white (`LOG_TINT` 1.35 / 1.5 / 2.3, §46), the bark map at the same phase with its fissures running round every
+log, the same pale crown and moss band, stakes in pairs like a fence. The owner-side agent rewrote the module directly:
+`LOG_TINT` → 0.76 / 0.74 / 1.0, the grain along the log with its own offset and roll per log, wear where boots land (rubbed
+smooth and dark), soil in the crease, moss where nobody steps, stakes irregular. Pair `d4f1feec^` vs `d4f1feec` here:
+
+| | A | C | F | A flight box (fable-5's; frame 15.7 % / 14.2 % / 0.345) | lips / troughs (frame 100 / 85) |
+|---|---|---|---|---|---|
+| before | 0.2239 | 0.2045 | 0.2232 | 44.1 % dark / 12.7 % pale / 0.291 | 92 / 66 |
+| after | 0.2233 (−0.0006) | 0.2046 | **0.2254 (+0.0022)** | **51.4 % / 7.5 % / 0.264** | **78 / 63** |
+
+Draws / triangles unchanged. At 2 m (`logs78-3rd-tread-pair.jpg`) the new timbers are the better logs — weathered grey-brown,
+grain along, worn crowns, each its own tone — where mine read as birch poles with rings: the owner was right and the fix
+answers him in kind. The cost is the flight's value at A, the half of W02 the tint had bought (§46: lips 68 → 94 against the
+frame's 100): the darker tint gives back ≈ 60 % of it (lips 78, dark share 51 % — the pre-tint head was 60.6 % / 7.3 % /
+0.250). The two are separate knobs — the individuality (phase, wear, stakes) does not need the darkness; a `LOG_TINT`
+near 1.0 / 0.97 / 1.3 would hold the lips at ≈ 90 with the grain and the wear as they now are. Offered to the owner-side
+agent / fable-cursor as the next tick's measure, not taken: the module's last word is theirs today.
+
+## Iteration 66 — V16, both halves as fable-5 specified (14:03): built, measured with their read — acceptance not met; the E box is the lawn slabs, whose joints are vegetation's turf — the implementation left on `agent/fable-2-v16-fill` (`2a3932df`, reverted on top)
+
+fable-5's two numbers, keyed on the flush rim's noise: seam soil at ≈ 0.40 (−0.15 below the slab) where the line shows;
+the slab's own value over ≈ 40 % of each run, with the rim flush there. Built across the module seam: one per-slab
+1.7 cycles / m noise (keyed fork) drives the rim drop in `flagstones.ts` (§64's term) and a `flush(x, z)` query on the paving
+(the nearest slab's weight), which `joints.ts` writes as a second channel of the gap field (RG) and the fill shader reads to
+mix the fill toward `FLUSH_TONE` (dry dirt at the slab's value); the seam soil and mossy earth albedos × 2 (`SEAM_FILL_LIFT`).
+Typecheck / build / 9 tests green. Measured with `seam-lines.py`, head (grass in) vs build:
+
+| box | | line px/kpx | width | depth (p90) | line > 0.12 | share > 0.12 | regions | SSIM |
+|---|---|---|---|---|---|---|---|---|
+| E | reference | 55.3 | 2.20 | 0.081 (0.125) | 12.4 % | 1.3 % | 5 | |
+| E | head | 86.1 | 2.54 | 0.097 (0.163) | 27.0 % | 5.8 % | 14 | 0.2188 |
+| E | both halves | **90.7** | 2.39 | 0.090 (0.150) | **21.5 %** | 4.7 % | 15 | +0.0006 |
+| C | head → both | 83.5 → 83.2 | | 0.103 → 0.099 | 29.3 → 26.1 % | 4.9 → 4.4 % | 25 → 25 | **+0.0016** |
+| D | head → both | 80.9 → 81.6 | | 0.097 → 0.100 | 25.1 → 27.8 % | 4.9 → 5.5 % | 10 → 9 | **−0.0016** |
+
+Acceptance (E line ≤ 60, hard groove ≤ 15 %, regions ≤ 6): not met — the hard-groove share moves a fifth of the way at E and C,
+the visible line length and the region count not at all. The crop says why (`seams66-E-triple.jpg`): **fable-5's E box is the
+lawn slabs** (B / E's pale bottom row), and the flush term follows the spall rule — none on the discs and the lawn slabs — so
+only the soil lift acted there; and the frame's lawn joints do not close under dry dirt but under **bright grass at the slab's
+value**, which is the W06 / W15 turf contract (vegetation-27's), not a hardscape tone. On the spine and plaza (C, D) the flush
+stretches exist and C gains +0.0016, D pays −0.0016 (the line count unchanged: the slab's shoulder roll against a flat fill
+still reads as an edge at > 0.04 whatever the fill's tone). What is left is not a number: the lawn slabs' joints as grass
+at the slab's value over stretches (vegetation + hardscape), and a softer shoulder where the rim is flush. Reverted on the
+branch; the implementation commit stays for the module holder. Four passes; this lane is done with V16.
+
+## Iteration 64 — V16's flush stretches (fable-5's re-scope) built and measured with their line read: the line is the fill strip's tone, not the recess — FAIL to land, reverted (`agent/fable-2-v16-flush`)
+
+Announced 05:50 with "hold and it stays"; no hold in seven hours, so built on the rim-drop channel as planned: over ≈ 40 % of
+each outline (a 1.7 cycles / m noise on its own keyed fork, none on discs and lawn slabs) the rim comes down to the fill
+(`rimY − (terrain + 0.008)`), so the wall top and shoulder meet the joint's soil and the recess comes and goes along the
+seam. E / C / D captured head vs flush and read with fable-5's `seam-lines.py` (their boxes, blur-difference > 0.04 thinned
+to lines):
+
+| E_ground | line px / kpx | width | depth (p90) | line > 0.12 | share > 0.12 | regions |
+|---|---|---|---|---|---|---|
+| reference | 55.3 | 2.20 | 0.081 (0.125) | 12.4 % | 1.3 % | 5 |
+| head `f97676d2` | 86.1 | 2.54 | 0.097 (0.163) | 27.0 % | 5.8 % | 14 |
+| flush stretches | **86.1** | 2.54 | 0.096 (0.163) | 27.0 % | 5.8 % | 14 |
+
+C 83.5 → 82.8 px/kpx, D 80.9 → 82.5; SSIM E −0.0002, C 0, D −0.0014; 4 K / 6 K / 15 K pixels changed — the stretches are
+there (rims sit flatter along them, `seams64-E-flush-pair.jpg`) and the line read does not move by a decimal. So the
+model behind the re-scope — "the outline is the paving's own shading of a continuous recess" — measures false as well:
+**with the rim flush, the joint still reads as a line because the 6–10 cm fill strip is darker than the slab along its
+whole length.** The frame's seams close where the fill is slab-toned dry dirt or grass lapping over, not where the
+groove is shallower. What would close ours is the fill's tone varying along the joint — the seam soil giving way to
+`JOINT_SOIL_DRY` / turf at the slab's own value over the same stretches (a fill attribute from the shared noise and a
+term in the joint shader, `joints.ts`) together with the flush rim. That is the module's change; three V16 passes from
+this lane have now mapped tone (§54), recess and edge geometry (§54, §64) and the tufts (§54) as non-levers, and this
+lane stops at V16 unless the module is handed over with the fill half. Reverted by forward commit.
+
+## Iteration 63 — the D boulder's form planes re-measured where the rock now stands (round-52 #12's "one plane"): still light, not geometry — FAIL to land (`agent/fable-2-form-2` @ `f5ab2f28`, the §19 commit rebased)
+
+§19 built the `planes` option and measured it a FAIL at D under the giant's canopy shadow; W23 then moved the boulder to
+the frame's rock spot (§36) and fable-5 read it "lit" at take-0128 — the condition that hid the planes had changed, so
+the same commit deserved the measure again. Rebased onto the head (`towardD` derives from the layout, so the planes face
+D from the new spot); the frame's D rock box 0.04–0.18 × 0.66–0.84:
+
+| build | macro σ | micro σ | stone mean l / hue / sat | p10 / p90 | D SSIM |
+|---|---|---|---|---|---|
+| reference D | **0.097** | 0.062 | 0.334 / 52° / 0.54 | **0.18 / 0.50** | |
+| head `c0f76f0c` (loaf) | 0.023 | 0.042 | 0.321 / 43° / 0.40 | 0.26 / 0.38 | 0.2785 |
+| planes (`f5ab2f28`) | 0.026 | 0.044 | 0.330 / 43° / 0.40 | 0.26 / 0.39 | 0.2772 (−0.0013) |
+| planes, hard bake (crest +60 %, undercut −50 %, dark 0.55) | 0.025 | 0.044 | 0.325 / 43° / 0.40 | 0.26 / 0.39 | 0.2773 (−0.0012) |
+
+Nothing moves the range: the frame's rock has the sun on its crown and a true shadow side (p90 0.50 over p10 0.18); ours
+is evenly lit whatever the geometry, and even the hard bake leaves p90 at 0.39 — the material's response to a baked
+vertex value is weak, and the light on the rock is flat (`form63-D-quad.jpg`: reference | loaf | planes | hard bake).
+At 2.5 m from the south the planes do read as a blockier, bedded block with an undercut line (`form63-2m-south.jpg`) —
+form for the eye, macro σ 0.041 → 0.039. So round-52 #12's "one plane" at D is the same answer as §19 and as V17's
+treads: the light on that spot, not rocks. Not landed (D −0.0013 for no metric gain); the rebased planes stay on the
+branch as the player-height form option if fable-cursor ever wants it.
+
+## Iteration 61 — the rock meshes' CPU arrays go on upload — `agent/fable-2-rock-upload` @ `a1ed0427` (stacked on §60)
+
+fable-4's `poolmem` (tick 225): every tree geometry drops its CPU typed arrays once the GPU has them (`BufferAttribute.onUpload`),
+renderer RSS at A −125 MB; fable-5's reconciliation: "`onUpload` drops the CPU copy of all static geometry — no GPU cost".
+Rocks qualify — nothing reads a rock mesh's arrays after the build: the bounds are computed before the first frame (three's
+frustum check runs before the upload on a mesh's first visible frame, from the array still present), the census reads
+`count`, the near-LOD swap toggles visibility, the rubble / strata skirt collapse writes the mesh's `instanceMatrix` (not a
+geometry attribute), and the only raycast in the tree is terrain's own sampler proof. So `compactRockGeometry` now also
+registers the drop on every attribute and index. At E after the first frames: **115 rock attributes released; live rock
+arrays 66.2 → 33.2 MB** (§60's compaction plus the drop on everything drawn — the hidden near kits keep theirs until first
+shown). The heap samples swing with GC timing (1 385 vs 1 475 MB between two runs), so the array bytes are the measure; the
+pixels cannot change (the GPU buffers are the same data). Tests 28/28 (no renderer in node: `onUpload` never fires there).
+
+## Iteration 60 — every rock mesh's vertex storage compacted: rocks 85.5 → 40.3 MB, the JS heap −45 MB — `agent/fable-2-rock-bytes` @ `59c68f32` (stacked on §59)
+
+The second memory step §59 named, generalised: `compactRockGeometry` runs once over every mesh drawn with a rock material
+(`rock-triplanar…`), after every build-time read of the attributes — the hero near kits (320 K / 230 K / 194 K vertices),
+the far LODs, the dressing meshes, the ledge, the strata / rubble looks. `uv` goes (no rock material reads it: the skin
+is triplanar); the normal becomes Int8 ×3; any attribute whose values all sit in 0–1 (colour, `aWet`, `aLichen`, a
+pebble's `aMoss`) becomes Uint8; an attribute outside 0–1 stays float32 — the kits' `aMoss` carries the cushions (> 1)
+and the lichen plates (< 0). Normalised integer attributes reach the shader as the same floats; idempotent (the §59 tiles
+are left as they are).
+
+| | rocks | of which | JS heap (A) |
+|---|---|---|---|
+| head `a1eafb17` | 85.5 MB | pebble tiles 30.4 · hero kits 34.1 · dressing 13.5 · far LODs 6.9 | 1 529 MB |
+| `59c68f32` | **40.3 MB** | tiles 11.1 · kits 18.7 · dressing 7.2 · far LODs 3.4 | **1 484 MB** |
+
+The GPU process holds the other copy, so the tab gives back ≈ 90 MB. Pixels — the quantisation's footprint, no more:
+
+| view / pose | SSIM | px > 8 | > 40 | note |
+|---|---|---|---|---|
+| D_log (capture pair) | 0.2785 → 0.2785 | 2 212 (0.24 %) | 0 | the shot-D boulder's crack and bed lines, where dark colours quantise coarsest (`bytes60-D-boulder.jpg`, ×6 difference) |
+| E_ground (capture pair) | 0.2182 → 0.2183 | 341 (0.04 %) | 1 | draws / tris identical (386 / 7.96 M, 425 / 7.80 M) |
+| `sn-shotd-2m` (the near kit at 2 m) | | 159 (0.02 %) | 0 | mean 2.2 levels |
+| `x-southbank-toe` (the dressing at 6.8 m) | | 1 184 (0.13 %) | 0 | mean 2.8 levels |
+
+Rocks tests 28/28, typecheck / build green. Rocks' bytes are done: what remains (40 MB) is the vertex count itself —
+the near kits at 200–320 K non-indexed vertices each, sized for a camera within 6 m; a lower-density kit would be a look
+change to measure at the 2 m poses, not a storage one.
+
+## Iteration 59 — the pebble tiles' bytes: 30.5 → 11.2 MB (tick 223's OOM ask) — `agent/fable-2-pebble-bytes` @ `20b72fdf`
+
+fable-cursor (07:15): the capture stalls are OOM kills, the tab at 3.6 GB, the world's resident memory the root cause.
+A per-system geometry-bytes map from the page (`.agents/reviews/fable-2-memory-map-4f22e7ec.md`): 773 MB of attribute
+arrays, trees 440, rocks 86 — and 30.5 MB of rocks' were §49's pebble tiles: 2 042 × 300 non-indexed float32 vertices at
+52 B, where the eight InstancedMeshes had held 0.3 MB. The far material the tiles draw with reads position, normal,
+colour and `aMoss` only (triplanar, no `uv`; `aWet` / `aLichen` are the near variant's), and a pebble's colour is
+0.47–0.76, its `aMoss` 0–0.40: each merged tile now drops `uv` and `aWet` and stores the normal as Int8 ×3, colour and
+`aMoss` as Uint8, normalised — 19 B per vertex.
+
+| | tiles | rocks | JS heap at A |
+|---|---|---|---|
+| head `4f22e7ec` | 30.5 MB | 85.5 MB | 1 526 MB |
+| `20b72fdf` | **11.2 MB** | **66.2 MB** | 1 507 MB |
+
+Pixels (pose tool, head vs branch, settle 12): E — pebbles at 1–2 m in the foreground — 0.23 % of pixels move at all, by
+2.3 levels on average, 96 over 8, none over 40; A 0.12 % / 40 / 0: the quantisation's footprint. Tests 28/28. The rest
+of rocks' bytes (the hero near kits 34 MB, the dressing meshes 13.5) carry `aMoss` outside 0–1 and the near attributes —
+a scaled Int16 and a shader read, ≈ −25 MB more, if the memory ask stays open.
+
+## Iteration 58 — the dressing fade's outer edge 13 → 20 m: FAIL as a visible change, reverted (`agent/fable-2-dressing-fade-20`)
+
+fable-5's re-read of §56 (06:28: the pair IMPROVED +27 % at 6.8 m, six views unchanged) named one edge: the owner said
+5–20 m and the band ends at 13 m — "the outer edge is the knob". Measured: `DRESSING_NEAR_FADE_M` [7, 13] → [10, 20],
+four poses along V20's bearing to the pale pair (camera at 6.8 / 11 / 16 / 20 m, eye 1.5 m):
+
+| distance | changed px | on the pair |
+|---|---|---|
+| 6.8 m | 9 | inside both fades — unchanged, as it should be |
+| 11 m | 384 (0.04 %) | fine σ 0.0228 → 0.0233 (+2 %) — the pair behind fern and grass blades |
+| 16 m | 29 | the far skin and the near skin the same picture |
+| 20 m | 2 | — |
+
+Two reasons, both structural: beyond 10 m these stones stand behind the bank's ferns and grass from every ground-level
+bearing (§14's finding at the hero boulders again), and where they show, the near skin's terms are 5–12 cm features —
+under two pixels at 11 m, one at 20 — so the far skin already looks like the near skin there. The owner's range past
+10 m wants form at 20–40 cm (planes, beds), which is geometry, not the skin. Reverted by forward commit; the 7–13 m
+band of §56 stays. `dress58-southbank-6.8-11-16-20m.jpg` (the four head frames).
+
+## Iteration 56 — the clearing's and backside's stones keep their near skin to 13 m (the owner's "stones under-detailed at 5–20 m", where a walker sees stone) — `agent/fable-2-dressing-fade` @ `0d86abbb`
+
+§14 looked for this at the hero boulders and found them hidden by ferns at every 8–20 m pose. The stones a walker does
+see at 5–20 m are the dressing sets: the backside's pale pair (6.8 m from `x-southbank-toe`), the clearing's west-bank
+pair and slabs. Both used `heroMaterial`, whose near skin fades out at 4.0–6.3 m — so at exactly those poses they were
+the smooth far skin. They now take their own near-capable material with `DRESSING_NEAR_FADE_M` = [7, 13] (plates, wet
+band, lichen crust, relief 1.5 — the hero skin, further out). Both sets are off every fixed view by construction (the
+clearing under the north toggle, the backside's spheres outside all six frusta, `backside.test`), which the capture
+confirms: **E / C / D SSIM identical to four decimals, 0–4 px > 8 levels** (the capture's own noise), draws / tris equal.
+
+| pose | fine σ (2 px residual, stone box) | changed px | read |
+|---|---|---|---|
+| `x-southbank-toe` (6.8 m) | **0.0171 → 0.0202 (+18 %)** | 1.5 % | the pale pair is a knapped stone with lichen flecks and a damp foot, not a smooth loaf (`dress56-x-southbank-toe.jpg`) |
+| `x-southbank-toe-4m` | 0.0157 → 0.0158 | 0.1 % | inside both fades — unchanged, as it should be |
+| `x-clearing-n` | 0.0264 → 0.0264 | 0.3 % | the box is the ledge (its own 7–14 m material); the clearing pair sits farther out |
+
+Rocks tests 28/28, typecheck / build green; one material more (the dressing meshes draw only where their toggles show them).
+
+## Iteration 54 — round-52 #3, V16's seams: five levers measured, none is "a seam value" — the dark area is the joints' edge length — FAIL to land, mapped (`agent/fable-2-seam-value`, all reverted)
+
+fable-5's round-52 list puts V16 at #3 as "hardscape / fable-2 — a seam value, one commit". Measured on head `073f5ff2`
+with fable-5's own read (joint-like dark pixels = blur-difference > 0.12 at 640 px, their boxes E 0.3–0.7 × 0.75–1.0,
+C 0.45–1.0 × 0.62–1.0, D 0.35–0.7 × 0.72–1.0), one knob per build, E / C / D captured for each:
+
+| build | E dark % · slab l | C | D | SSIM E / C / D vs head |
+|---|---|---|---|---|
+| reference | 3.1 · 0.491 | 1.8 · 0.425 | 2.5 · 0.474 | |
+| head `073f5ff2` | 8.1 · 0.448 | 6.2 · 0.440 | 6.3 · 0.426 | |
+| fill albedo × 1.3 (`SEAM_FILL_LIFT`, soil + mossy earth) | 7.8 · 0.448 | 6.0 · 0.440 | 6.1 · 0.427 | +0.0003 / +0.0004 / +0.0002 |
+| slabs half as proud (`SLAB_PROUD_K` 0.5, rim floor too) | **8.9** · 0.444 | **7.1** · 0.436 | **7.1** · 0.419 | **−0.0020** / +0.0006 / **−0.0021** |
+| painted crevice off (`CREVICE_STRENGTH` 0) | 7.4 · 0.448 | 5.9 · 0.440 | 5.7 · 0.427 | +0.0003 / +0.0004 / +0.0002 |
+| joint sprouts hidden (E, pose tool, diagnostic) | 8.1 (control 8.0) | | | |
+| (§45) flank stain 0.7 → 0.4, flank × 0.86, shoulder as bright as the top | 8.3 (from 8.2) | 6.3 | 6.3 | −0.0001 / +0.0001 / +0.0002 |
+
+What the mask shows (`seams54-E-darkmask.jpg`, the counted pixels in red): **in the frame they are Link's shadow edge and
+two joints — the frame's joints stay under the 0.12 contrast; in ours every slab is outlined along its full length.**
+So §45's ratio (dark px / slab, 0.52 vs 0.51) compared our joints with the frame's shadows, and the fill value is a
+lever in principle — but not in practice: the contrast curve is shifted at every threshold (share > 0.04: E 27 vs 17 %,
+> 0.12: 8.1 vs 3.1 %, > 0.20: 1.7 vs 0.4 %), and no knob moves the low end at all (crevice off: 27.6 %). The joints
+are lit as grooves (the shadow map on the proud lips and the painted recess), and there is 1.6 × as much joint edge per
+box as in the frame. Sinking the slabs made it worse (more fill and tuft base in view). The one-constant answers give
+≤ 10 % of the way; halving it is the paving's edge length and the joint's definition as a line — a hardscape rebuild,
+not a value — and not mine without the module. Everything reverted by forward commits; the branch keeps the measures.
+Files: `seams54-E-triple.jpg` (reference | head | fill × 1.3), `seams54-E-darkmask.jpg`.
+
+## Iteration 50 — the pebble tiles' distance LOD: A 8.80 → 8.69 M (−110 K with §49), six views unchanged — `agent/fable-2-pebble-lod` @ `15fd5128` (stacked on §49)
+
+The lever §49 named for A itself. Beyond `PEBBLE_LOD_M` = 10 m (camera to the tile's nearest point, ± 1 m band so a
+walking camera never flickers a tile) a tile shows its far looks: the same eight recipes at `PEBBLE_LOW_DETAIL` = 0 (20
+triangles, keyed forks of their own — the near looks and their streams are the geometry they were), merged per tile
+like the near set and swapped in `nearUpdate`. A 3 cm pebble at 10 m is ≈ 9 px. BEFORE = §49's capture (same head),
+AFTER captured here:
+
+| view | SSIM (head → tiles → LOD) | changed px vs tiles (> 8 / > 40) | draws | triangles head → tiles → LOD |
+|---|---|---|---|---|
+| A_stairs | 0.2291 → 0.2291 → 0.2291 | 104 / 3 | 447 | 8.80 → 8.77 → **8.69 M (−110 K)** |
+| B_house | 0.1965 = = | 184 / 1 | 428 | 7.95 → 7.92 → 7.86 M (−90 K) |
+| C_lookback | 0.2201 = = | 66 / 1 | 342 | 7.05 → 6.95 → 6.93 M (−120 K) |
+| D_log | 0.2788 = = | 99 / 0 | 393 | 8.18 → 8.14 → 8.09 M (−90 K) |
+| E_ground | 0.2182 → 0.2182 → 0.2181 | 184 / 1 | 428 | 7.95 → 7.92 → 7.86 M (−90 K) |
+| F_canopy | 0.2420 = = | 1 / 0 | 403 | 8.09 → 7.96 → 7.96 M (−130 K) |
+
+The changed pixels are the far pebbles' silhouettes (≤ 0.02 % of a frame, at most three strong); `pebbles56-A-lod-pair.jpg`
+shows A's far plaza at ×3, before | after — specks either way. Draws as §49 (one mesh visible per tile). W24's count
+untouched. Tests 28/28, typecheck / build green. Together the two commits give A 310 K of headroom under W38's ceiling
+where tick 213 had 200 K.
+
+## Iteration 49 — the path pebbles merged per 10 m tile: −30 … −130 K triangles per view, pixels identical — `agent/fable-2-pebble-tiles` @ `1e2777be`
+
+fable-cursor (tick 213): A at 8.80 M against W38's 9.0 M ceiling — "nothing more on A's side of the canopy without a
+matching cut". A cut from rocks: the path pebbles were eight `InstancedMesh`es (one per look), each with a bounding
+sphere spanning the whole scatter (radius 84 m), so every fixed camera drew all 2 042 pebbles × 80 triangles whether
+one was in its frustum or not. `PEBBLE_TILE_M` = 10: the same instances, looks baked in, merged into one static mesh
+per 10 m ground tile; three.js culls tile by tile. Positions, looks and the W24 count (`systems.rocks.pebbles` 3 151,
+main 2 042) untouched — 20 tiles replace the eight look-meshes; the north set stays under its toggle. BEFORE = head `0963c09d`, AFTER = `1e2777be`, both
+captured here (`--settle 12`):
+
+| view | SSIM (both) | changed px | draws | triangles |
+|---|---|---|---|---|
+| A_stairs | 0.2291 | **0** | 442 → 447 (+5) | 8.80 → 8.77 M (**−30 K**) |
+| B_house | 0.1965 | 0 | 424 → 428 (+4) | 7.95 → 7.92 M (−30 K) |
+| C_lookback | 0.2201 | 0 | 341 → 342 (+1) | 7.05 → 6.95 M (**−100 K**) |
+| D_log | 0.2788 | 0 | 390 → 393 (+3) | 8.18 → 8.14 M (−40 K) |
+| E_ground | 0.2182 | 0 | 424 → 428 (+4) | 7.95 → 7.92 M (−30 K) |
+| F_canopy | 0.2420 | 2 | 407 → 403 (−4) | 8.09 → 7.96 M (**−130 K**) |
+
+A keeps most of the plaza in view, so culling alone buys it 30 K; the lever for A itself is a per-tile distance LOD
+(a 20-triangle look for tiles beyond ≈ 10 m, swapped in `nearUpdate` — a 3 cm pebble is ≈ 9 px there) — the next
+iteration if fable-cursor wants A's triangles specifically. Tests 28/28 (`tiers.test` serves `BufferGeometryUtils`
+to the module loader), typecheck / build green.
+
+## Iteration 47 — the thinner timber (13–16 cm) measured on outward faces: worse on every number — FAIL, reverted (`agent/fable-2-logs-thin` @ `de1d607f`)
+
+fable-5's r53 §B named three levers for the flight's weight at A: a paler drier crown (§46, landed), the 13–16 cm timber,
+the treads' light (V17). The timber measured on the current head (`445fa453`, the grey-tan tint in): `LOG_RADIUS`
+0.08–0.1 → 0.065–0.08 (`a45b935b`), BEFORE and AFTER captured on this VM.
+
+| | fable-5's box (dark l < 0.25 / pale l > 0.45 / mean l) | lips / troughs | A | C | F |
+|---|---|---|---|---|---|
+| reference A | 15.7 % / 14.2 % / 0.345 | 100 / 85 | | | |
+| head `445fa453` (16–20 cm) | 39.4 % / 13.0 % / 0.302 | 94 / 71 | 0.2291 | 0.2201 | 0.2420 |
+| `a45b935b` (13–16 cm) | **41.6 % / 12.1 % / 0.296** | 93 / 70 | **−0.0016** | +0.0001 | −0.0007 |
+
+Draws and triangles identical (442 / 8.80 M at A). Once the crown is the flight's pale element (§46), a thinner log exposes
+more of the dark riser and tread behind it — the box gets darker, not paler; the −0.003 of §39's take 5 was the same
+effect through inward faces. So the dark share that remains (39 vs 16 %) is the stone's — the treads' and risers' light,
+V17 — and the timber's thickness is not a lever for it. Reverted by forward commit; the branch keeps the measurement.
+Files: `logs54-3rd-tread-pair.jpg` (2 m: 16–20 cm | 13–16 cm).
+
+## Iteration 46 — the stair timbers re-tinted on outward faces: A +0.0087, F's cost gone — `agent/fable-2-logs-tint` @ `c1e7d115`
+
+Astra (fable-cursor 18:10, `27c2e3c8`): the tube's 20,160 side triangles in `logNosings.ts` were wound inward — with
+FrontSide the render (and fable-5's rays) saw the far inner wall through each log, not its crown. Every tint take of §39
+(dark timber, bleached crown, thinner logs) was tuned against that inner wall, and the timber's effective albedo was never
+looked at: `bark_brown_02` has a linear mean of 0.113 / 0.091 / 0.047 and the arch's `0x6e6258` multiplies it by ≈ 0.15 —
+**≈ 2 % albedo**, near-black wood. On the head with her fix, the A frame's flight box (0.62–0.88 × 0.25–0.70, row profile
+at 200 × 120; lips = local row maxima, troughs = minima):
+
+| A flight box | mean l | dark (< 40) | saturation | lips / troughs |
+|---|---|---|---|---|
+| reference A (§6.6b: bark `#746d5d` lit, `#453e32` shadow) | 90 | 1.2 % | 0.29 | **100 / 85** |
+| head `c11f0ff4`, `LOG_FLIGHTS` emptied (no logs) | 74 | 5.9 % | 0.30 | 86 / 67 |
+| take-2 logs, faces inward (what take-0129 measured) | 71 | 7.1 % | 0.30 | 81 / 64 |
+| head `c11f0ff4`: faces outward, tint `0x6e6258` | 65 | **13.6 %** | 0.33 | **68 / 63** |
+| `c1e7d115`: `LOG_TINT` 1.35 / 1.5 / 2.3, floor tint `#746d5d` | 81 | 5.7 % | 0.32 | **94 / 71** |
+
+The reference's flight is a tan base with lit lips 15 points over the treads behind; ours with outward dark logs had the
+dark timber exactly where the lit lips belong (68 over 63 — the alternation gone, the dark share doubled). Seven tints at
+A + the 2 m head-on pose: lifting alone (×1.8 / 1.85 / 2.4) puts the lips at 100 but the flight's saturation at 0.36 whatever
+the albedo — the shade floor's light tint was the arch's `HOUSE_BARK_TINT` (a saturated brown); with the reference's own
+lit bark tone as the floor tint the saturation comes to 0.32. The landed pair is 0.8 × that lift (our whole flight runs
+≈ 15 points darker than the frame's — troughs 71 vs 85 — so lips ≈ 94 keeps the frame's lip / trough relation instead of
+its absolute), cooled so the texture's orange R/B 2.4 comes to ≈ 1.4. `LOG_TINT`, `LOG_FLOOR_TINT` in `logNosings.ts`;
+the winding line is Astra's and untouched; tests 4/4 (hers included), typecheck / build green.
+
+Six views, all captured on this VM on head `c11f0ff4` (its take-2 tint, and once more with `LOG_FLIGHTS` emptied) and on
+`c1e7d115`:
+
+| view | head, no logs | head `c11f0ff4` (take-2 tint, faces outward) | `c1e7d115` | Δ vs head | Δ vs no logs | draws / tris |
+|---|---|---|---|---|---|---|
+| A_stairs | 0.2217 | 0.2204 | **0.2291** | **+0.0087** | **+0.0074** | 442 / 8.80 M |
+| B_house | — | — | 0.1965 | 0 (flight ≈ 54° off axis, outside the 37° half-FOV) | — | 424 / 7.95 M |
+| C_lookback | 0.2216 | 0.2199 | 0.2201 | +0.0002 | −0.0015 | 341 / 7.05 M |
+| D_log | — | — | 0.2786 | 0 (flight behind the camera) | — | 390 / 8.18 M |
+| E_ground | — | — | 0.2182 | 0 (E's frame ≡ B's) | — | 424 / 7.95 M |
+| F_canopy | 0.2415 | 0.2376 | **0.2420** | **+0.0044** | +0.0005 | 407 / 8.09 M |
+
+So the logs now *pay* at A (+0.0074 over the flight without them) and are free at F (take-0129's −0.0104 was the inward
+faces: Astra's fix alone brought it to −0.0039, the tint the rest). Files: `logs50-A.jpg` (reference | inward | outward
+dark | tinted, A's flight), `logs50-3rd-tread.jpg` (the 2 m head-on pose, same three), `logs50-w23-stairs-f.jpg`.
+
+In fable-5's measure (19:00 note; flight box 0.60–0.92 × 0.25–0.70, dark l < 0.25 / pale l > 0.45 — the thresholds that
+give the frame their 15.8 / 14.0 %): reference **15.8 % dark / 14.0 % pale / mean l 0.344**; take-0129 51.8 / 8.2 / 0.268
+(theirs 52 / 8 / 0.267); head `c11f0ff4` 60.6 / 7.3 / 0.250 (theirs 61.5 / 7.3 / 0.248); the same head without logs
+46.9 / 9.9 / 0.280; **`c1e7d115` 39.4 / 12.8 / 0.302**. The timbers now sit below their own absence on the dark share;
+the 39 → 16 % that remains is the treads' light (V17), hardscape's stone tint.
+
+## Iteration 45 — V16's seams, taken and measured: the tone and the rim are the frame's already; the lever is the COUNT of dark features (FAIL to land, the finding reported)
+
+Announced 17:40 and taken on `agent/fable-2-seams`. The hypothesis of §43 (the slab's stained flank + shaded shoulder widen
+the seam into a dark rim) tested as three constants — flank stain 0.7 → 0.4, the flank ×0.86 instead of ×0.76, the shoulder
+as bright as the top — and it moved **nothing**: joint-dark share E 8.2 → 8.3 %, C 6.2 → 6.3 %, D 6.3 → 6.3 %; SSIM E −0.0001,
+C +0.0001, D +0.0002. Reverted (forward commit; the branch keeps the negative result).
+
+What the pixels say instead (blur-difference > 0.12 at 640 px, per box, reference vs ours):
+
+| | dark px mean l / slab mean l → ratio | dark runs: median width / p90 / **count** |
+|---|---|---|
+| reference E | 0.253 / 0.491 → 0.51 | 2 px / 5 px / **262** |
+| ours E | 0.233 / 0.451 → 0.52 | 2 px / 8 px / **573** |
+| reference D | 0.247 / 0.474 → 0.52 | 2 px / 4 px / **240** |
+| ours D | 0.237 / 0.429 → 0.55 | 2 px / 6 px / **483** |
+
+The seam's darkness ratio is the frame's (0.52 vs 0.51 — round 50's fill tone was right) and the median line is as thin
+(2 px); what doubles the dark AREA is **twice as many dark runs** and a fatter tail: more dark features per stone — the
+broken-slab splits, the notches and chipped corners, and the joint tufts (the E zoom, `seams43-E-pair.jpg`: every joint of
+ours sprouts a dark tuft; the frame's joints are bare soft lines with a plant here and there). So V16's next pass is
+fewer dark features per stone (split cells / notches / tuft density on the plaza and spine), not a tone or a rim — and
+those touch the W06 / W15 turf contracts, so it is hardscape-32's or a lane with the go, not a two-constant evening.
+
+## Iteration 42 — the stairs' pitch, projected before claiming it: steepening does not buy the frame's riser spacing at A
+
+fable-cursor (14:50, tick 207): the log nosings merged (F −0.0104 named as the owner's look change), vegetation's W23 contracts
+fixed on their side, and "open for anyone with capacity: the stairs' pitch (fable-5: the demo's 35–40°) — announce before
+taking". fable-5's §9 inference was: riser spacing along the flight's centre in A ≈ 11 px (demo) vs ≈ 14 px (ours) → ours
+1.3 × the tread depth, or a gentler pitch. Before announcing, the flight projected into camera A for the layout and for the
+demo's pitch with either end held:
+
+| flight | slope | run | riser spacing in A, median px (min–max) | foot in A | top in A |
+|---|---|---|---|---|---|
+| layout: 20 × 0.27 / 0.54 | 26.6° | 10.8 m | **14.0** (8.8–28.0) | (0.674, 0.628) | (0.764, 0.219) |
+| tread 0.42, top fixed | 32.7° | 8.4 m | 13.2 (9.3–21.2) | (0.704, 0.596) | same |
+| tread 0.42, foot fixed | 32.7° | 8.4 m | 15.1 (10.1–26.3) | same | (0.753, 0.194) |
+| tread 0.36, top fixed | 36.9° | 7.2 m | 12.8 (9.6–18.9) | (0.715, 0.584) | same |
+| tread 0.36, foot fixed | 36.9° | 7.2 m | 15.7 (11.0–25.4) | same | (0.746, 0.179) |
+
+A looks along the flight nearly radially (the layout's own note: bearing ≈ 55°, 16° off the camera's), so the image spacing
+of the risers is perspective distance, not pitch: the demo's 37° moves the median 14.0 → 12.8 px at best (top fixed) and
+*widens* it foot-fixed, never reaching 11 px — and the top-fixed variants slide the foot 1.2–3.6 m up the run, off the
+composition the layout fitted to frames 1 s / 8 s (rms ≤ 0.6 px) and off the pots, the V21 rock, the kokiri spot and the
+fence that stand at the flight's ends. So the 11 vs 14 px is a camera-distance / framing difference, not a tread-depth one,
+and the pitch is not the lever for A. Not claimed; the numbers go to fable-cursor and fable-5. (If the demo's steepness at
+`d_105` is wanted for the head-on read, it is a heading-specific check: project into `d_105`'s camera, which we do not have.)
+
 ## Iteration 40 — take-0128: W23 passes; the log nosings back at the take fable-5 measured — `agent/fable-2-stairs-logs` @ `e3cc18f3`
 
 take-0128 sealed on the W23 move: D hue error 6.44° → 4.82°, A +0.0003, C +0.0012, D +0.0007, E −0.0030 (the rock in E's left

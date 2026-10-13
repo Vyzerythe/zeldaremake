@@ -17,14 +17,28 @@
  * and the waist ring. All of that costs the same submissions as the decal face did (skull, eyes,
  * lash, hair, band on the head; two thigh flaps are the only new meshes).
  *
+ * Lane 7 (2026-09-23, "the people need to be updated" — the girl by the signpost at the follow
+ * camera's 4–8 m, ref-01 / d_023–d_036): the head joint is scaled ×1.14 (`HEAD_SCALE` — head and
+ * hair a third of the height, the footage's proportions); the hair is a wider bob (r × 1.16, a
+ * deeper hem flare, seven soft lobes breaking the outline into locks below the band, a fuller
+ * crown, side locks framing the face at the bob's cut edge) in the footage's maroon under a canvas
+ * of broad locks and fine strands on a glossier surface that takes a sheen from the sun
+ * (`girlHair`); the tunic's upper carries four shallow fold ridges and the whole tunic wears a
+ * drape canvas (fold valleys in step with the ridges, shade under the belt and along the hem, a
+ * fine weave — `girlCloth`); the skin is the pale peach of the footage instead of the tan. Same
+ * meshes, same submissions per kid.
+ *
  * `variant` 0 = the girl who wanders the plaza (kokiri-a), 1 = the girl who sits on the steps
- * (kokiri-b, darker tunic and hair), 2 = the boy at Saria's door (the round-1 look), 3 = the
+ * (kokiri-b, darker tunic and hair), 2 = the boy at Saria's door (round 1's build on the lane-7
+ * canvases, bob and band — `buildBoy`), 3 = the
  * girl on the raised ledge (kokiri-ledge, ref-04), 4 = the girl on the south bank (round 50,
- * `NPC_SOUTH_BANK`). Every material is cached per look so the per-joint merge (consolidate.ts)
- * keeps a kid at ~23 meshes.
+ * `NPC_SOUTH_BANK`), 5 = the girl at the north grove's washing line (lane 7, her own look 4), 6 = the
+ * boy at the stilt house's veranda rail (lane 7; the door boy's look and materials, his own hem seed).
+ * Every material is cached per look so the per-joint merge (consolidate.ts) keeps a kid at ~23 meshes.
  */
 import {
   BoxGeometry,
+  CapsuleGeometry,
   BufferGeometry,
   CanvasTexture,
   Color,
@@ -33,17 +47,21 @@ import {
   Float32BufferAttribute,
   Group,
   Matrix4,
+  Mesh,
   MeshStandardMaterial,
+  RepeatWrapping,
   SphereGeometry,
   SRGBColorSpace,
   TorusGeometry,
   Vector3,
   type WebGLProgramParametersWithUniforms,
 } from 'three';
+import { hash2 } from '../util/prng';
 import { merge, ovalLathe, place, sweep } from './geometry';
 import { CHAR_COLORS, matte } from './palette';
-import { beginTally, buildArms, buildFace, buildHair, buildLegs, buildNeck, endTally, part, type Character } from './link';
+import { beginTally, buildArms, buildFace, buildLegs, endTally, part, type Character } from './link';
 import { buildRig, type Proportions, type Rig } from './rig';
+import { skinRig } from './skin';
 
 /**
  * A Kokiri child: 1.06 m to the skull top (1.09 with the hair), head 0.26 m across — a quarter of
@@ -72,26 +90,43 @@ export const KOKIRI_CHILD_PROPORTIONS: Proportions = {
  * and ref-01: the girls' deep forest-green tunic (display ≈ #2b4a2a), a brighter green headband,
  * near-black boots with khaki cuffs, maroon-red hair (display ≈ #5e2226), dark leather belt and
  * wristbands. Indexed by the girl look g (0 = kokiri-a, 1 = kokiri-b, 2 = the ledge girl, 3 = the
- * girl on the south bank — round 50, a slightly bluer tunic and a darker auburn bob); the boy keeps
- * the palette's kid colours. Looks 0–2 are pinned: the six fixed frames' kids wear them.
+ * girl on the south bank); the boy keeps the palette's kid colours. Lane 7 (2026-09-23): the skin is
+ * the pale peach of ref-01 / d_024 — the tan of rounds 47–50 read orange against the footage at the
+ * follow camera's 5 m — and the hair the footage's maroon (the 0x93412f brick, low in blue, rendered
+ * as an orange-brown).
+ *
+ * Lane 7 (2026-09-25), the cast's variety: until now the four looks were four maroons over four
+ * near-identical greens, and at the follow camera's 4–7 m the five girls read as one girl five times.
+ * The two girls the fixed frames hold against the footage keep the footage's maroon and deep green:
+ * look 0, the girl by the signpost (A / C / F), and look 1, kokiri-b at the left edge of B / E. The
+ * girls no fixed frame holds take their own colour under the same lock and cloth canvases: 2 chestnut
+ * under a deep blue-green (the ledge girl, 75 m off in A / B / D / E); 3 near-black brown under a mossy
+ * olive (the bank girl, outside all six); 4 honey-blonde under a yellower, lighter green (the grove
+ * girl, beyond the 60 m cull in every frame — her own look now instead of kokiri-b's).
  */
 const KID = {
-  tunic: [0x375f35, 0x2f522f, 0x3a5a2e, 0x335a3a],
-  band: [0x4d7a3c, 0x44703a, 0x568a3e, 0x4a7c46],
+  tunic: [0x375f35, 0x2f522f, 0x2c5238, 0x546b36, 0x4d7538],
+  band: [0x4d7a3c, 0x44703a, 0x3f7a4a, 0x6a8a44, 0x5e8a44],
   belt: 0x4a3322,
   buckle: 0xb8963f,
   boot: 0x352721,
   cuff: 0x8f7f5a,
-  hair: [0x93412f, 0x7e382c, 0x9c4a30, 0x843a2a],
-  skin: [0xbd8a62, 0xb6845e, 0xc08f66, 0xba8860],
-  iris: ['#4a2c1a', '#3d2818', '#3b4a24', '#46301c'],
+  hair: [0x7e2f33, 0x6e2a2e, 0x74492b, 0x3a2a1e, 0xc89c4c],
+  skin: [0xd3a98a, 0xcda385, 0xd6ad8e, 0xd0a687, 0xd3a98a],
+  iris: ['#4a2c1a', '#3d2818', '#4a3320', '#2a1a10', '#556a2e'],
   lash: 0x1c120e,
 } as const;
-/** the boy's skin (round 47's value; unchanged so B / E keep their pixels) */
-const BOY_SKIN = 0xb28058;
+/** the boy's skin: round 47's tan brought to the girls' pale peach in step (lane 7 — the cast reads as one family) */
+const BOY_SKIN = 0xcfa07c;
+/** the boy's tunic: the palette's near-black kid green lifted a step so the cloth canvas's valleys and weave read at all */
+const BOY_TUNIC = 0x2f3320;
+/** the boy's hair: the palette's kid brown, a shade deeper under the lock canvas's lighter cores */
+const BOY_HAIR = 0x6b4630;
 
-/** the girl look index for a variant (the boy, variant 2, has none): 0 kokiri-a, 1 kokiri-b, 2 the ledge girl, 3 the south-bank girl */
-const girlLook = (variant: number) => (variant === 3 ? 2 : variant === 4 ? 3 : variant % 2);
+/** the variants built as the boy (`buildBoy`): the door boy and the veranda boy */
+const BOY_VARIANTS = new Set([2, 6]);
+/** the girl look index for a variant (the boys, variants 2 and 6, have none): 0 kokiri-a, 1 kokiri-b, 2 the ledge girl, 3 the south-bank girl, 4 the grove girl */
+const girlLook = (variant: number) => (variant === 3 ? 2 : variant === 4 ? 3 : variant === 5 ? 4 : variant % 2);
 
 const mats = new Map<string, MeshStandardMaterial>();
 function kidMat(key: string, color: number, roughness = 0.9): MeshStandardMaterial {
@@ -103,15 +138,6 @@ function kidMat(key: string, color: number, roughness = 0.9): MeshStandardMateri
     mats.set(id, m);
   }
   return m;
-}
-
-/** the round-1 variant tint helper (the boy keeps the palette's kid colours) */
-function tinted(key: 'kidHair' | 'kidSkin' | 'kidHeadband' | 'kidTunic', variant: number, hueShift: number, lightScale: number): MeshStandardMaterial {
-  const c = new Color(CHAR_COLORS[key]);
-  const hsl = { h: 0, s: 0, l: 0 };
-  c.getHSL(hsl);
-  c.setHSL((hsl.h + hueShift + 1) % 1, hsl.s, Math.min(1, hsl.l * lightScale));
-  return kidMat(`${key}-${variant}`, c.getHex());
 }
 
 // ---- skin: a warm terminator ramp (round 48) ----
@@ -147,16 +173,17 @@ function applySkinRamp(m: MeshStandardMaterial): MeshStandardMaterial {
   return m;
 }
 
-function girlSkin(look: number): MeshStandardMaterial {
-  const id = `skin-ramp:${look}`;
+function rampedSkin(key: string, color: number): MeshStandardMaterial {
+  const id = `skin-ramp:${key}`;
   let m = mats.get(id);
   if (!m) {
-    m = applySkinRamp(new MeshStandardMaterial({ color: new Color(KID.skin[look]), roughness: 0.78, metalness: 0 }));
-    m.name = `char-kid-skin-${look}`;
+    m = applySkinRamp(new MeshStandardMaterial({ color: new Color(color), roughness: 0.78, metalness: 0 }));
+    m.name = `char-kid-skin-${key}`;
     mats.set(id, m);
   }
   return m;
 }
+const girlSkin = (look: number) => rampedSkin(`girl-${look}`, KID.skin[look]);
 
 // ---- canvas textures (drawn once per look, shared by the kids that use it) ----
 
@@ -176,6 +203,106 @@ function canvasTex(c: HTMLCanvasElement, name: string): CanvasTexture {
 }
 
 const hex = (c: number) => `#${c.toString(16).padStart(6, '0')}`;
+
+const sstep = (e0: number, e1: number, x: number) => {
+  const t = Math.max(0, Math.min(1, (x - e0) / (e1 - e0)));
+  return t * t * (3 - 2 * t);
+};
+
+// ---- hair and cloth canvases (lane 7): shading that reads at the follow camera's 4–8 m ----
+
+/** a canvas painted per pixel as a lightness factor over one sRGB colour, wrapped in u and v (the hair and the tunic run once around) */
+function shadedCanvas(W: number, H: number, color: number, name: string, factor: (u: number, v: number, x: number, y: number) => number): CanvasTexture {
+  const [c, g] = canvas(W, H);
+  const r8 = (color >> 16) & 255;
+  const g8 = (color >> 8) & 255;
+  const b8 = color & 255;
+  const img = g.createImageData(W, H);
+  const d = img.data;
+  for (let y = 0; y < H; y++) {
+    const v = 1 - y / (H - 1);
+    for (let x = 0; x < W; x++) {
+      const k = factor(x / W, v, x, y);
+      const i = (y * W + x) * 4;
+      d[i] = Math.min(255, Math.round(r8 * k));
+      d[i + 1] = Math.min(255, Math.round(g8 * k));
+      d[i + 2] = Math.min(255, Math.round(b8 * k));
+      d[i + 3] = 255;
+    }
+  }
+  g.putImageData(img, 0, 0);
+  const tex = canvasTex(c, name);
+  tex.wrapS = RepeatWrapping;
+  tex.wrapT = RepeatWrapping;
+  return tex;
+}
+
+const hairTexCache = new Map<string, MeshStandardMaterial>();
+
+/**
+ * The kids' hair: a colour under nine broad locks across u (a dark valley and a lighter core each,
+ * widths uneven, so the bob reads as locks of hair rather than a helmet at 5 m), fine strands in
+ * long runs down v for the closer views, a shade toward the hem (v → 0, the underside of the bob)
+ * and a lift at the crown, on a glossier surface (roughness 0.58) so the sun leaves a sheen where
+ * the crown turns. The bob and the crown are sphere-mapped (u once around, v top → hem); the fringe
+ * and the clumps are laid onto the same canvas (`shell` grid UVs, `clumpUv`). Cached by `key`.
+ */
+function hairMaterial(key: string, color: number): MeshStandardMaterial {
+  let m = hairTexCache.get(key);
+  if (m) return m;
+  const map = shadedCanvas(512, 256, color, `char-kid-hair-${key}`, (u, v, x, y) => {
+    const shade = (1 - 0.16 * sstep(0.4, 0.05, v)) * (1 + 0.06 * sstep(0.7, 0.95, v));
+    const phase = u * 9 + 0.09 * Math.sin(u * Math.PI * 2 * 3 + 1.1) + 0.05 * Math.sin(v * 5.2 + u * 6);
+    const core = Math.cos(phase * Math.PI * 2);
+    const lock = 1 + 0.15 * core + 0.08 * Math.max(0, core) ** 3;
+    const col = Math.floor(x / 6);
+    const run = Math.floor((y + 23 * hash2(col, 7, 5)) / 44);
+    const strand = 1 + 0.08 * (hash2(col, run, 3) - 0.5) + 0.04 * (hash2(x, y >> 2, 9) - 0.5);
+    return shade * lock * strand;
+  });
+  m = new MeshStandardMaterial({ map, roughness: 0.58, metalness: 0 });
+  m.name = `char-kid-hair-${key}`;
+  hairTexCache.set(key, m);
+  return m;
+}
+
+const girlHair = (look: number) => hairMaterial(`girl-${look}`, KID.hair[look]);
+
+const clothTexCache = new Map<string, MeshStandardMaterial>();
+
+/**
+ * The kids' tunic cloth: a colour with four drape valleys around (u = azimuth / 2π — the skirt
+ * panels and the lathed upper lay their UVs out that way — dark where the skirt's fold ridges
+ * `cos(4a + 0.7)` dip), strongest toward the hem, a shade under the belt (v → 1) and along the
+ * hem (v → 0), a fine two-texel weave and a soft mottle for the closer views. Matte (0.86).
+ */
+function clothMaterial(key: string, color: number): MeshStandardMaterial {
+  let m = clothTexCache.get(key);
+  if (m) return m;
+  const map = shadedCanvas(256, 128, color, `char-kid-cloth-${key}`, (u, v, x, y) => {
+    const hem = 1 - 0.16 * sstep(0.2, 0, v);
+    const belt = 1 - 0.12 * sstep(0.82, 1, v);
+    const w = 0.45 + 0.55 * (1 - v);
+    const fold = Math.cos(8 * Math.PI * u + 0.7);
+    const drape = 1 + 0.12 * w * fold - 0.08 * w * Math.max(0, -fold) ** 2;
+    const weave = 1 + 0.035 * ((((x >> 1) + (y >> 1)) & 1) * 2 - 1);
+    const mottle = 1 + 0.04 * (hash2(x >> 3, y >> 3, 11) - 0.5);
+    return hem * belt * drape * weave * mottle;
+  });
+  m = new MeshStandardMaterial({ map, roughness: 0.86, metalness: 0 });
+  m.name = `char-kid-cloth-${key}`;
+  clothTexCache.set(key, m);
+  return m;
+}
+
+const girlCloth = (look: number) => clothMaterial(`girl-${look}`, KID.tunic[look]);
+
+/** turn a lathe's UVs (u = φ / 2π from +Z toward +X) to the skirt panels' convention (u = atan2(z, x) / 2π), so the cloth canvas's valleys fall in the lathe's own fold valleys */
+function azimuthUv(geo: BufferGeometry): BufferGeometry {
+  const uv = geo.attributes.uv;
+  for (let i = 0; i < uv.count; i++) uv.setX(i, 0.25 - uv.getX(i));
+  return geo;
+}
 
 /** UV corners of the skull texture that carry a flat colour for the merged features */
 const SKULL_TEX_W = 512;
@@ -331,9 +458,10 @@ function flatUv(geo: BufferGeometry, uv: [number, number]): BufferGeometry {
 /**
  * A spherical shell around `centre` (radius R) over the azimuth range ±psiMax about +Z, whose
  * polar extent at each azimuth psi runs from thetaFrom(psi) to thetaTo(psi) — the eyelids (an
- * almond edge) and the fringe (a pointed hem). Normals radial, UVs flat.
+ * almond edge) and the fringe (a pointed hem). Normals radial; UVs flat (one texture point) or,
+ * given a function of the grid position (ix / ws across, iy / hs down), laid out over the shell.
  */
-function shell(centre: Vector3, R: number, psiMax: number, thetaFrom: (psi: number) => number, thetaTo: (psi: number) => number, ws: number, hs: number, uv: [number, number]): BufferGeometry {
+function shell(centre: Vector3, R: number, psiMax: number, thetaFrom: (psi: number) => number, thetaTo: (psi: number) => number, ws: number, hs: number, uv: [number, number] | ((sx: number, sy: number) => [number, number])): BufferGeometry {
   const positions: number[] = [];
   const normals: number[] = [];
   const uvs: number[] = [];
@@ -349,7 +477,8 @@ function shell(centre: Vector3, R: number, psiMax: number, thetaFrom: (psi: numb
       const nz = Math.sin(th) * Math.cos(psi);
       positions.push(centre.x + R * nx, centre.y + R * ny, centre.z + R * nz);
       normals.push(nx, ny, nz);
-      uvs.push(uv[0], uv[1]);
+      const p = typeof uv === 'function' ? uv(ix / ws, iy / hs) : uv;
+      uvs.push(p[0], p[1]);
     }
   }
   const col = hs + 1;
@@ -517,41 +646,57 @@ function buildGirlFace(rig: Rig, look: number): void {
   rig.eyes.push(eyes);
 }
 
+/** re-lay a sweep's UVs for the hair canvas: the strands run along the tube (v), a lock's width of the canvas wraps around it (u) */
+function clumpUv(geo: BufferGeometry): BufferGeometry {
+  const uv = geo.attributes.uv;
+  for (let i = 0; i < uv.count; i++) {
+    const along = uv.getX(i);
+    const around = uv.getY(i);
+    uv.setXY(i, around * 0.16, 0.85 - 0.5 * along);
+  }
+  return geo;
+}
+
 /**
- * Hair (round 48): four overlapping shells in one mesh — the bob body (open at the face, hem
- * flared for volume and cut ragged), the crown volume above the headband, a pointed fringe
- * hanging from under the band to the brows, side locks framing the face — plus the brow tubes
- * (same colour, same joint, so they ride in the same submission).
+ * Hair (round 48, widened for lane 7): four overlapping shells in one mesh — the bob body (open
+ * at the face, hem flared for volume and cut ragged, its outline below the band broken into
+ * seven soft lobes), the crown volume above the headband, a pointed fringe hanging from under the
+ * band to the brows, side locks framing the face at the bob's cut edge — plus the brow tubes
+ * (same colour, same joint, so they ride in the same submission — `brows` false for the boy, whose
+ * face builder has its own). Every part carries UVs onto the hair canvas (`hairMaterial`): the
+ * spheres their own, the fringe a grid, the clumps `clumpUv`.
  */
-function buildGirlHair(rig: Rig, hair: MeshStandardMaterial): void {
+function buildGirlHair(rig: Rig, hair: MeshStandardMaterial, brows = true): void {
   const r = rig.props.headRadius;
   const k = r / 0.125;
   const clump = (from: [number, number, number], mid: [number, number, number], to: [number, number, number], r0: number, r1: number, tip = 0.004) =>
-    sweep([new Vector3(...from).multiplyScalar(k), new Vector3(...mid).multiplyScalar(k), new Vector3(...to).multiplyScalar(k)], [r0 * k, r1 * k, tip * k], { segments: 8, radial: 7, closeTip: true, closeStart: true });
-  // bob body: back and sides down past the jaw, open at the face; the hem flares and is cut ragged
-  const bob = new SphereGeometry(r * 1.1, 26, 14, Math.PI / 2 + 0.78, Math.PI * 2 - 1.56, 0, Math.PI * 0.76);
+    clumpUv(sweep([new Vector3(...from).multiplyScalar(k), new Vector3(...mid).multiplyScalar(k), new Vector3(...to).multiplyScalar(k)], [r0 * k, r1 * k, tip * k], { segments: 8, radial: 7, closeTip: true, closeStart: true }));
+  // bob body: back and sides down past the jaw, open at the face; the hem flares and is cut ragged;
+  // below the band the radius carries seven soft lobes so the silhouette reads as locks, not a helmet
+  const bobR = r * 1.16;
+  const bob = new SphereGeometry(bobR, 28, 14, Math.PI / 2 + 0.78, Math.PI * 2 - 1.56, 0, Math.PI * 0.76);
   {
     const pos = bob.attributes.position;
     for (let i = 0; i < pos.count; i++) {
       const x = pos.getX(i);
       const y = pos.getY(i);
       const z = pos.getZ(i);
-      const th = Math.acos(Math.max(-1, Math.min(1, y / (r * 1.1))));
+      const th = Math.acos(Math.max(-1, Math.min(1, y / bobR)));
+      const a = Math.atan2(z, x);
       const hem = Math.max(0, (th - Math.PI * 0.5) / (Math.PI * 0.26));
-      const flare = 1 + 0.11 * Math.pow(hem, 1.6);
+      const flare = 1 + 0.2 * Math.pow(hem, 1.5);
+      const lobes = 1 + 0.04 * Math.cos(7 * a + 0.4) * sstep(0.33, 0.6, th / Math.PI);
       let yy = y;
-      if (th > Math.PI * 0.74) {
-        const a = Math.atan2(z, x);
-        yy -= 0.007 * (0.5 + 0.5 * Math.sin(a * 7.0 + 1.3));
-      }
-      pos.setXYZ(i, x * flare, yy, z * flare);
+      if (th > Math.PI * 0.74) yy -= 0.01 * (0.5 + 0.5 * Math.sin(a * 7.0 + 1.3));
+      pos.setXYZ(i, x * flare * lobes, yy, z * flare * lobes);
     }
     pos.needsUpdate = true;
     bob.computeVertexNormals();
   }
   const parts: BufferGeometry[] = [place(bob, 0, -0.004, -0.016, undefined, [1.04, 1, 1.02])];
-  // crown: a fuller dome above the band (its edge hides inside the band)
-  parts.push(place(new SphereGeometry(r * 1.14, 26, 9, 0, Math.PI * 2, 0, Math.PI * 0.36), 0, 0.014, -0.008, undefined, [1.0, 0.95, 1.04]));
+  // crown: a fuller dome above the band (its edge hides inside the band: at the band's height the
+  // dome is 0.14 m across against the band's 0.15, at the back too, where the band dips)
+  parts.push(place(new SphereGeometry(r * 1.18, 26, 9, 0, Math.PI * 2, 0, Math.PI * 0.36), 0, 0.012, -0.008, undefined, [1.0, 0.95, 1.04]));
   // fringe: a shell over the forehead from under the band down to the brows, its hem cut into points
   const fringeC = new Vector3(0, 0.012, 0.004);
   const fringeR = r * 1.065;
@@ -566,23 +711,26 @@ function buildGirlHair(rig: Rig, hair: MeshStandardMaterial): void {
       (psi) => Math.PI * (0.415 + 0.028 * (0.5 - 0.5 * Math.cos((psi / 0.88) * Math.PI * points + 0.6))),
       24,
       8,
-      [0.5, 0.5],
+      // its 1.76 rad of the head's circumference onto the canvas (u = 0.28 of the locks), strands running down
+      (sx, sy) => [0.36 + 0.28 * sx, 0.92 - 0.5 * sy],
     ),
   );
-  // side locks in front of the ears, to the jaw, and two tufts at the nape under the bob
-  parts.push(clump([0.098, 0.064, 0.06], [0.114, -0.03, 0.062], [0.108, -0.105, 0.05], 0.024, 0.02));
-  parts.push(clump([-0.098, 0.064, 0.06], [-0.114, -0.03, 0.062], [-0.108, -0.105, 0.05], 0.024, 0.02));
-  parts.push(clump([0.045, -0.06, -0.1], [0.05, -0.1, -0.095], [0.04, -0.13, -0.08], 0.022, 0.016));
-  parts.push(clump([-0.045, -0.06, -0.1], [-0.05, -0.1, -0.095], [-0.04, -0.13, -0.08], 0.022, 0.016));
+  // side locks: from under the band at the bob's cut edge (flush with the bob there), out past the
+  // cheek — 5 mm clear of it — and down to the jaw, framing the face; two tufts at the nape under the bob
+  parts.push(clump([0.088, 0.052, 0.077], [0.115, -0.03, 0.1], [0.112, -0.115, 0.096], 0.027, 0.026, 0.009));
+  parts.push(clump([-0.088, 0.052, 0.077], [-0.115, -0.03, 0.1], [-0.112, -0.115, 0.096], 0.027, 0.026, 0.009));
+  parts.push(clump([0.045, -0.06, -0.1], [0.052, -0.1, -0.096], [0.042, -0.135, -0.08], 0.024, 0.018));
+  parts.push(clump([-0.045, -0.06, -0.1], [-0.052, -0.1, -0.096], [-0.042, -0.135, -0.08], 0.024, 0.018));
   // brows: arched tubes just proud of the skull, thicker at the inner end, 2–3 cm over the lid line
   // (under the fringe's points, visible between them)
-  for (const s of [1, -1] as const) {
+  for (const s of brows ? ([1, -1] as const) : []) {
     const pts = [
       new Vector3(s * 0.017, 0.021, skullZ(r, 0.017, 0.021, 0.0022)),
       new Vector3(s * 0.04, 0.03, skullZ(r, 0.04, 0.03, 0.0024)),
       new Vector3(s * 0.064, 0.026, skullZ(r, 0.064, 0.026, 0.0022)),
     ];
-    parts.push(sweep(pts, [0.0032, 0.0034, 0.0018], { segments: 8, radial: 6, closeTip: true, closeStart: true }));
+    // thinner since the head grew (lane 7): the round-48 tubes read as a frown at 5 m under the fringe's points
+    parts.push(sweep(pts, [0.0022, 0.0025, 0.0013], { segments: 8, radial: 6, closeTip: true, closeStart: true }));
   }
   part(rig.head, merge(parts), hair, 'hair');
 }
@@ -603,19 +751,71 @@ function buildGirlHeadband(rig: Rig, bandMat: MeshStandardMaterial): void {
     place(new TorusGeometry(R * 1.01, 0.006, 6, 28), 0, 0.023 * k, 0, [Math.PI / 2, 0, 0]),
     place(new TorusGeometry(R * 1.035, 0.006, 6, 28), 0, -0.023 * k, 0, [Math.PI / 2, 0, 0]),
   ]);
-  part(rig.head, place(geo, 0, 0.073 * k, -0.005, [-0.1, 0, 0], [1, 1, 0.97]), bandMat, 'kid-headband');
+  // no shadow pass: the band's shadow falls on the hair a centimetre under it (a submission saved per girl, like the belt's)
+  part(rig.head, place(geo, 0, 0.073 * k, -0.005, [-0.1, 0, 0], [1, 1, 0.97]), bandMat, 'kid-headband', false);
 }
 
-/** dark leather wristbands on the bare forearms (both wrists, like the demo girl) */
+/**
+ * Dark leather wristbands on the bare forearms (both wrists, like the demo girl). Lane 7: cuffs on
+ * the belt's strap canvas — an open tube whose v is folded onto the canvas's leather face (its
+ * stitch rows a few millimetres inside each edge) and whose u carries two repeats (twelve stitches
+ * round a 23 cm cuff) — so the cuffs and the strap share one material, and the girls' skinned
+ * meshes count one fewer per material.
+ */
 function buildWristbands(rig: Rig, leather: MeshStandardMaterial): void {
   const p = rig.props;
-  for (const elbow of [rig.elbowL, rig.elbowR]) part(elbow, place(new CylinderGeometry(0.037, 0.036, 0.024, 10), 0, -p.forearm + 0.016, 0), leather, 'wristband', false);
+  for (const elbow of [rig.elbowL, rig.elbowR]) {
+    const cuff = new CylinderGeometry(0.037, 0.036, 0.024, 12, 1, true);
+    const uv = cuff.attributes.uv;
+    for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) / 3, uv.getY(i) * 0.33);
+    part(elbow, place(cuff, 0, -p.forearm + 0.016, 0), leather, 'wristband', false);
+  }
+}
+
+/**
+ * The four fingers of a hand, inner to outer: [x from the hand's centre-line (m, toward the little
+ * finger), capsule body length (m)]. The tips fall 2–2.5 cm below `buildArms`' ball, a child's
+ * palm-to-finger proportion; the little finger shortest.
+ */
+const FINGERS: readonly [number, number][] = [
+  [-0.016, 0.03],
+  [-0.005, 0.034],
+  [0.006, 0.032],
+  [0.017, 0.026],
+];
+const FINGER_R = 0.0072;
+/** the fingers' curl toward the palm's front (rad about the wrist's x) and the outermost's splay (rad) */
+const FINGER_CURL = -0.22;
+const FINGER_SPLAY = 0.07;
+
+/**
+ * Digits on each mitten hand (owner 23:00, "make the other characters look a bit better" at
+ * 2–6 m): `buildArms`' hand is a flattened ball. A thumb — a small ellipsoid on the palm's inner
+ * side, angled forward — made it read as a hand at 2–3 m; four fingers hang from the ball's lower
+ * front, splayed a little and curled toward the palm, so the hand the greeting raises beside the
+ * head (the wave, 1.7–2.6 m from Link) is an open hand and not a paddle, and the hands at rest read
+ * as hands beside the skirt. Their roots sit inside the ball, so the joint is hidden. Skin material,
+ * shadows on, so they ride in the skin's skinned submission — no extra draw (skin.ts bakes every
+ * mesh under a joint into one SkinnedMesh per material).
+ */
+function buildHands(rig: Rig, skin: MeshStandardMaterial): void {
+  const p = rig.props;
+  const ballY = -p.forearm - 0.02;
+  for (const side of [1, -1] as const) {
+    const elbow = side > 0 ? rig.elbowL : rig.elbowR;
+    part(elbow, place(new SphereGeometry(0.012, 8, 6), -side * 0.03, -p.forearm - 0.008, 0.016, [0.35, 0, side * 0.55], [1, 1.6, 0.9]), skin, 'thumb');
+    const fingers = FINGERS.map(([x, len]) =>
+      place(new CapsuleGeometry(FINGER_R, len, 2, 6), side * x, ballY - 0.03 - len / 2, 0.006, [FINGER_CURL, 0, (side * x) / 0.017 * FINGER_SPLAY]),
+    );
+    part(elbow, merge(fingers), skin, 'fingers');
+  }
 }
 
 /**
  * An open skirt panel: the (radius, y) profile revolved over the angle range [a0, a1] (angle a
  * measured from +X toward +Z, so the front centre is π/2), oval in Z, with fold ridges and a
- * scalloped, ragged hem like `ovalLathe`. Rows top→bottom; UVs (u along, v up).
+ * scalloped, ragged hem like `ovalLathe`. Rows hem→top; UVs (u = a / 2π, so the cloth canvas's
+ * fold valleys land in the panel's own — whatever range the panel spans; v up).
  */
 function skirtPanel(profile: [number, number][], a0: number, a1: number, segments: number, opts: { scaleZ: number; folds: number; foldDepth: number; scallops: number; scallopDepth: number; ragged: number; seed: number; radiusScale?: number }): BufferGeometry {
   const positions: number[] = [];
@@ -638,7 +838,7 @@ function skirtPanel(profile: [number, number][], a0: number, a1: number, segment
         yy += opts.ragged * h;
       }
       positions.push(Math.cos(a) * rr, yy, Math.sin(a) * rr * opts.scaleZ);
-      uvs.push(i / segments, j / (profile.length - 1));
+      uvs.push(a / (Math.PI * 2), j / (profile.length - 1));
     }
   }
   const col = segments + 1;
@@ -669,21 +869,25 @@ function buildGirlTunic(rig: Rig, tunic: MeshStandardMaterial): void {
   const p = rig.props;
   const hl = (y: number) => y - p.hipY;
   const cl = (y: number) => y - p.chestY;
-  // upper: waist → chest → shoulders → neck opening, a little barrel-chested like a child
+  // upper: waist → chest → shoulders → neck opening, a little barrel-chested like a child; four
+  // shallow fold ridges rising from the waist (lane 7), with the lathe's UVs turned to the skirt
+  // panels' convention (u = atan2(z, x) / 2π) so the cloth canvas's valleys fall in the lathe's own
+  const upper = ovalLathe(
+    [
+      [0.096, cl(0.55)],
+      [0.1, cl(0.62)],
+      [0.108, cl(0.7)],
+      [0.114, cl(0.76)],
+      [0.106, cl(0.79)],
+      [0.055, cl(0.805)],
+    ],
+    { segments: 22, scaleZ: 0.76, folds: 4, foldDepth: 0.04 },
+  );
+  azimuthUv(upper);
   part(
     rig.chest,
     merge([
-      ovalLathe(
-        [
-          [0.096, cl(0.55)],
-          [0.1, cl(0.62)],
-          [0.108, cl(0.7)],
-          [0.114, cl(0.76)],
-          [0.106, cl(0.79)],
-          [0.055, cl(0.805)],
-        ],
-        { segments: 22, scaleZ: 0.76 },
-      ),
+      upper,
       // soft collar
       place(new TorusGeometry(0.066, 0.012, 8, 20), 0, cl(0.8), 0.004, [Math.PI / 2 - 0.2, 0, 0], [1, 1, 0.82]),
     ]),
@@ -712,63 +916,160 @@ function buildGirlTunic(rig: Rig, tunic: MeshStandardMaterial): void {
     const flap = skirtPanel([profile[0], profile[1], profile[2], [0.107, 0.012]], a0, a1, 10, { ...opts, radiusScale: side > 0 ? 1 : 0.985 });
     // hips space → thigh space (the thigh joint sits at ± hipHalfWidth on the hips)
     flap.applyMatrix4(_m4.makeTranslation(-side * p.hipHalfWidth, 0, 0));
-    part(thigh, flap, tunic, 'kid-tunic-flap');
+    const flapMesh = part(thigh, flap, tunic, 'kid-tunic-flap');
+    // shared with the hips (skin.ts SkinBlend): from the waist the flap hangs and drapes down over the
+    // thigh when she sits, instead of pivoting with it into a shelf at hip height over bare thighs
+    flapMesh.userData.skinBlend = { top: 0.85, hem: 0.5 };
   }
-  // leather belt at the waist with a small square buckle at the front
+  // leather belt (lane 7, owner 23:00 JOB 7 "the belt"): a flat strap, 3 cm tall and 6 mm thick, on
+  // the waist's oval — stitched along both edges and burnished at them on the strap canvas — passing
+  // through a square buckle frame at the front with its tongue, the tail hanging a hand below the
+  // buckle. Round 48's torus and plate read as a rubber ring at 2 m.
   const y = hl(0.555);
-  part(rig.hips, place(new TorusGeometry(0.104, 0.015, 8, 26), 0, y, 0, [Math.PI / 2, 0, 0], [1, 1, 0.8]), kidMat('belt', KID.belt), 'kid-belt');
-  part(rig.hips, merge([place(new BoxGeometry(0.036, 0.03, 0.008), 0, y, 0.088), place(new BoxGeometry(0.006, 0.03, 0.01), 0, y, 0.09)]), kidMat('buckle', KID.buckle, 0.6), 'kid-buckle', false);
+  const strap = ovalLathe([[0.106, y - 0.015], [0.106, y + 0.015], [0.1, y + 0.015], [0.1, y - 0.015]], { segments: 26, scaleZ: 0.8 });
+  const tail = place(new BoxGeometry(0.022, 0.07, 0.005), 0.03, y - 0.032, 0.088, [0, 0, 0.22]);
+  part(rig.hips, merge([strap, tail]), beltMaterial(), 'kid-belt', false);
+  const bar = 0.005;
+  const bz = 0.089;
+  part(
+    rig.hips,
+    merge([
+      place(new BoxGeometry(0.038, bar, 0.007), 0, y + 0.0135, bz),
+      place(new BoxGeometry(0.038, bar, 0.007), 0, y - 0.0135, bz),
+      place(new BoxGeometry(bar, 0.032, 0.007), -0.0165, y, bz),
+      place(new BoxGeometry(bar, 0.032, 0.007), 0.0165, y, bz),
+      // the tongue, off-centre where it lies over the strap's end
+      place(new BoxGeometry(0.0035, 0.03, 0.005), -0.004, y, bz + 0.002),
+    ]),
+    kidMat('buckle', KID.buckle, 0.6),
+    'kid-buckle',
+    false,
+  );
 }
 
-/** the round-1 boy: near-black sleeveless tunic, rope belt, headband, bob, pouch, Deku Stick */
+/** scale a rope piece's u so the canvas's twist repeats `turns` times along it (v round the strand stays 0–1) */
+function ropeUv(g: BufferGeometry, turns: number): BufferGeometry {
+  const uv = g.attributes.uv;
+  for (let i = 0; i < uv.count; i++) uv.setX(i, uv.getX(i) * turns);
+  return g;
+}
+
+/**
+ * The rope canvas (lane 7): laid rope — three strands twisted round the core read as ridges running
+ * diagonally across the rope's length; one repeat of the canvas is one turn of the lay. Pale hemp
+ * with a darker groove between the strands and a fibre fuzz in the highlights.
+ */
+function ropeMaterial(): MeshStandardMaterial {
+  const id = 'rope-lay';
+  let m = mats.get(id);
+  if (!m) {
+    const tex = shadedCanvas(32, 32, CHAR_COLORS.kidRope, 'kid-rope-lay', (u, v, x, y) => {
+      // three strands per turn: the groove where phase crosses 0, the strand's belly at 0.5
+      const phase = (u * 3 + v * 1.0) % 1;
+      const belly = 0.5 + 0.5 * Math.cos(phase * Math.PI * 2);
+      const fuzz = 1 + 0.08 * (hash2(x * 0.71, y * 0.37) - 0.5);
+      return (0.62 + 0.5 * belly) * fuzz;
+    });
+    m = new MeshStandardMaterial({ map: tex, roughness: 0.92, metalness: 0 });
+    m.name = 'char-kid-rope-lay';
+    mats.set(id, m);
+  }
+  return m;
+}
+
+/**
+ * The strap canvas (lane 7): the lathe's v runs outer face (0–⅓) → top edge → inner face, so the
+ * outer third carries the leather — a fine grain, a burnished darker line at each edge and a row
+ * of pale stitches a few millimetres inside them, six per repeat and six repeats round the waist.
+ */
+function beltMaterial(): MeshStandardMaterial {
+  const id = 'belt-strap';
+  let m = mats.get(id);
+  if (!m) {
+    const tex = shadedCanvas(128, 48, KID.belt, 'kid-belt-strap', (u, v, x, y) => {
+      if (v > 0.34) return 0.78;
+      const f = v / 0.34;
+      const grain = 1 + 0.06 * (hash2(x * 0.37, y * 0.61) - 0.5);
+      const edge = f < 0.07 || f > 0.93 ? 0.72 : 1;
+      const stitchRow = Math.abs(f - 0.17) < 0.045 || Math.abs(f - 0.83) < 0.045;
+      const stitch = stitchRow && Math.sin(u * Math.PI * 2 * 6 + 0.4) > 0.25 ? 1.55 : 1;
+      return grain * edge * stitch;
+    });
+    tex.repeat.set(6, 1);
+    m = new MeshStandardMaterial({ map: tex, roughness: 0.72, metalness: 0 });
+    m.name = 'char-kid-belt-strap';
+    mats.set(id, m);
+  }
+  return m;
+}
+
+/**
+ * The boy at Saria's door (round 1; lane 7 brings him level with the girls): a near-black
+ * sleeveless tunic on the cloth canvas with four fold ridges, a rope belt, the wide Kokiri band,
+ * the girls' lobed bob in brown (no tube brows — `buildFace` gives him his own), a pouch and a
+ * Deku Stick. His face stays link.ts's `buildFace`.
+ */
 function buildBoy(rig: Rig, variant: number, skin: MeshStandardMaterial): void {
   const p = rig.props;
-  const tunic = tinted('kidTunic', variant, 0.01 * (variant % 2), 1 + 0.12 * (variant % 2));
-  const hair = tinted('kidHair', variant, -0.01 * (variant % 3), 1 - 0.1 * (variant % 2));
+  const tunic = clothMaterial('boy', BOY_TUNIC);
   buildArms(rig, { skin, sleeve: null });
+  buildHands(rig, skin);
   const hl = (y: number) => y - p.hipY;
   const cl = (y: number) => y - p.chestY;
   part(
     rig.hips,
-    ovalLathe(
-      [
-        [0.13, hl(0.37)],
-        [0.115, hl(0.46)],
-        [0.102, hl(0.54)],
-        [0.1, hl(0.6)],
-      ],
-      { segments: 22, scaleZ: 0.78, raggedHem: 0.025, seed: 21 + variant },
+    azimuthUv(
+      ovalLathe(
+        [
+          [0.13, hl(0.37)],
+          [0.115, hl(0.46)],
+          [0.102, hl(0.54)],
+          [0.1, hl(0.6)],
+        ],
+        { segments: 22, scaleZ: 0.78, raggedHem: 0.025, seed: 21 + variant, folds: 4, foldDepth: 0.05 },
+      ),
     ),
     tunic,
     'kid-tunic-skirt',
   );
   part(
     rig.chest,
-    ovalLathe(
-      [
-        [0.098, cl(0.56)],
-        [0.104, cl(0.65)],
-        [0.115, cl(0.72)],
-        [0.112, cl(0.77)],
-        [0.07, cl(0.79)],
-        [0.05, cl(0.805)],
-      ],
-      { segments: 22, scaleZ: 0.74 },
+    azimuthUv(
+      ovalLathe(
+        [
+          [0.098, cl(0.56)],
+          [0.104, cl(0.65)],
+          [0.115, cl(0.72)],
+          [0.112, cl(0.77)],
+          [0.07, cl(0.79)],
+          [0.05, cl(0.805)],
+        ],
+        { segments: 22, scaleZ: 0.74, folds: 4, foldDepth: 0.035 },
+      ),
     ),
     tunic,
     'kid-tunic-upper',
   );
+  // the rope belt (lane 7, owner 23:00 JOB 7 "the belt"): two wraps of laid rope — the twist on the
+  // rope canvas, ridges running diagonally round each wrap — knotted at the front where the wraps
+  // cross, the two ends hanging a hand down the skirt and fraying at their tips. The round-1 belt
+  // was the same two tori in flat colour, two rings at 2.5 m.
+  const wrapY = hl(0.565);
   const rope = merge([
-    place(new TorusGeometry(0.106, 0.009, 6, 26), 0, hl(0.565), 0, [Math.PI / 2, 0, 0], [1, 1, 0.8]),
-    place(new TorusGeometry(0.106, 0.007, 6, 26), 0, hl(0.58), 0, [Math.PI / 2, 0, 0], [1, 1, 0.8]),
-    place(new CylinderGeometry(0.008, 0.008, 0.07, 6), 0.02, hl(0.535), 0.088, [0.2, 0, 0.15]),
-    place(new CylinderGeometry(0.008, 0.008, 0.06, 6), -0.015, hl(0.54), 0.09, [0.2, 0, -0.1]),
+    ropeUv(place(new TorusGeometry(0.106, 0.009, 7, 40), 0, wrapY, 0, [Math.PI / 2, 0, 0], [1, 1, 0.8]), 36),
+    ropeUv(place(new TorusGeometry(0.106, 0.008, 7, 40), 0, hl(0.582), 0, [Math.PI / 2, 0, 0], [1, 1, 0.8]), 36),
+    // the knot: the wraps' crossing, a lump the size of two rope widths
+    place(new SphereGeometry(0.017, 10, 8), 0.006, wrapY + 0.006, 0.086, undefined, [1.15, 0.85, 0.9]),
+    // the ends: out of the knot and down, splaying a little, each fraying to a point
+    ropeUv(place(new CylinderGeometry(0.0075, 0.0085, 0.095, 7), 0.026, hl(0.53), 0.09, [0.18, 0, 0.22]), 6),
+    ropeUv(place(new CylinderGeometry(0.0075, 0.0085, 0.08, 7), -0.014, hl(0.537), 0.092, [0.2, 0, -0.14]), 5),
+    place(new ConeGeometry(0.0075, 0.02, 7), 0.037, hl(0.53) - 0.057, 0.1, [Math.PI + 0.18, 0, 0.22]),
+    place(new ConeGeometry(0.0075, 0.018, 7), -0.02, hl(0.537) - 0.049, 0.1, [Math.PI + 0.2, 0, -0.14]),
   ]);
-  part(rig.hips, rope, matte('kidRope'), 'kid-rope-belt', false);
+  part(rig.hips, rope, ropeMaterial(), 'kid-rope-belt', false);
   buildFace(rig, { skin, iris: matte('irisKid', { roughness: 0.3 }), earLength: 0.07 });
-  buildHair(rig, hair, 'bob');
-  const band = tinted('kidHeadband', variant, 0.03 * (variant % 3), 1);
-  part(rig.head, place(new TorusGeometry(p.headRadius * 1.1, 0.011, 6, 26), 0, 0.032, 0.004, [Math.PI / 2 - 0.12, 0, 0], [1, 1, 0.98]), band, 'kid-headband', false);
+  buildGirlHair(rig, hairMaterial('boy', BOY_HAIR), false);
+  buildGirlHeadband(rig, kidMat('band-boy', CHAR_COLORS.kidHeadband));
   part(rig.hips, place(new BoxGeometry(0.05, 0.05, 0.03), -0.09, hl(0.52), 0.04, [0, 0.4, 0]), matte('leatherDark'), 'kid-pouch', false);
   // a Deku Stick held in the right hand like a staff (butt near the ground)
   const handY = -p.forearm - 0.02;
@@ -776,26 +1077,45 @@ function buildBoy(rig: Rig, variant: number, skin: MeshStandardMaterial): void {
   part(rig.elbowR, place(stick, 0, 0, 0, [0.1, 0, 0.05]), matte('stick'), 'deku-stick');
 }
 
+/**
+ * The kids' heads are built at the rig's radius and the head joint (pivoted at the head centre)
+ * is scaled up (lane 7): head + hair become a third of the height — the footage's chibi read
+ * (ref-01: the girl's head and bob are 34 % of her) — with the face, hair and band tuned at
+ * 0.13 m growing together. The skull's underside then meets the shoulder line, as in d_024
+ * (the neck is inside it), and the collar tucks under the bob's hem.
+ */
+const HEAD_SCALE = 1.14;
+
 export function createKokiri(variant: number): Character {
   beginTally();
   const rig = buildRig(KOKIRI_CHILD_PROPORTIONS, `kokiri-${variant}`);
+  rig.head.scale.setScalar(HEAD_SCALE);
   const p = rig.props;
-  const girl = variant !== 2;
+  const girl = !BOY_VARIANTS.has(variant);
   const look = girlLook(variant);
-  const skin = girl ? girlSkin(look) : kidMat(`skin-${variant}`, BOY_SKIN);
+  const skin = girl ? girlSkin(look) : rampedSkin('boy', BOY_SKIN);
   const boot = kidMat('boot', girl ? KID.boot : CHAR_COLORS.kidBoot);
   // boots to just under the knee; the girls' near-black boots have a khaki fold-over cuff
   buildLegs(rig, { skin, boot, cuff: girl ? kidMat('cuff', KID.cuff) : null, shaftTop: p.kneeY - p.ankleY - 0.03 });
-  buildNeck(rig, skin);
+  // no neck mesh (lane 7): under HEAD_SCALE the skull's underside (0.79 m) sits below the collar's top
+  // (0.81 m) and the bob's hem covers the back — the cylinder link.ts's buildNeck would add is enclosed
   if (girl) {
-    const tunic = kidMat(`tunic-${look}`, KID.tunic[look]);
     buildArms(rig, { skin, sleeve: null });
-    buildWristbands(rig, kidMat('belt', KID.belt));
-    buildGirlTunic(rig, tunic);
+    buildHands(rig, skin);
+    buildWristbands(rig, beltMaterial());
+    buildGirlTunic(rig, girlCloth(look));
     buildGirlFace(rig, look);
-    buildGirlHair(rig, kidMat(`hair-${look}`, KID.hair[look]));
+    buildGirlHair(rig, girlHair(look));
     buildGirlHeadband(rig, kidMat(`band-${look}`, KID.band[look]));
   } else buildBoy(rig, variant, skin);
+  // shadow pass (lane 7): a boot cuff's shadow falls on the shaft two centimetres under it — it cannot
+  // shadow a visible pixel; two submissions per kid
+  rig.root.traverse((o) => {
+    if ((o as Mesh).isMesh && o.name === 'boot-cuff') o.castShadow = false;
+  });
+  // one skinned mesh per material for the whole kid (skin.ts): ≈ 26 submissions → 11, the shadow pass 16 → 5
+  rig.root.userData.skinned = skinRig(rig.root);
   rig.root.userData.character = 'kokiri';
-  return { kind: 'kokiri', rig, group: rig.root, triangles: endTally(), height: girl ? 1.09 : 1.1 };
+  // to the crown of the hair: skull top 1.06 + the scaled crown (girl: the dome reaches 0.158 · 1.14 over the head centre)
+  return { kind: 'kokiri', rig, group: rig.root, triangles: endTally(), height: girl ? 1.12 : 1.13 };
 }

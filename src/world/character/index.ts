@@ -17,15 +17,15 @@
  * (`samplePositions.feet`), both soles' gaps (`linkFeetContact`), the planting (`linkIk`) and the
  * GLB's blink (`blink*`: blink.ts — inert, `blinkMorphs` 0, on an asset without the morphs).
  */
-import { Group, MathUtils, Mesh, Object3D, PerspectiveCamera, Vector3, type Camera } from 'three';
+import { Frustum, Group, MathUtils, Matrix4, Mesh, Object3D, PerspectiveCamera, Sphere, Vector3, type Camera } from 'three';
 import type { WorldContext, WorldSystem } from '../system';
 import { GAIT_SPEED, GAITS, HERO_PHASE, PLAYER_ACCEL, PLAYER_DECEL, PLAYER_SPEED, type Gait } from './animation';
 import { createGround } from './ground';
 import { createKokiri } from './kokiri';
-import { createNpcs } from './npc';
+import { createNpcs, GROVE_SLOT, LEDGE_SLOT, VERANDA_SLOT } from './npc';
 import { createLink } from './link';
 import { createNavi, naviHoverAnchor, TRAIL_COUNT } from './navi';
-import { headingOf, marchToGround, matchViewpoint, NPC_SOUTH_BANK, pointAtDepth, projectPoint, VIEW_TABLE, type CamPose, type V3 } from './placement';
+import { headingOf, marchToGround, matchViewpoint, NPC_GROVE_VERANDA, NPC_GROVE_YARD, NPC_SOUTH_BANK, pointAtDepth, projectPoint, VIEW_TABLE, type CamPose, type V3 } from './placement';
 import { PLAYER_KEY, type PlayerHandle, type PlayerInput } from './player';
 import { createContactShadow } from './shadow';
 import { consolidateRigParts } from './consolidate';
@@ -63,8 +63,24 @@ interface Actor extends GaitChain {
   shadowRadius: number;
 }
 
-/** kokiri-a (wander), kokiri-b (seat), the boy at Saria's door, kokiri-ledge (round 48: the stand on the raised ledge), kokiri-south-bank (round 50: the stand on the south bank) */
-const KID_COUNT = 5;
+/** kokiri-a (wander), kokiri-b (seat), the boy at Saria's door, kokiri-ledge (round 48: the stand on the raised ledge), kokiri-south-bank (round 50: the stand on the south bank), the grove girl (lane 7: the north yard's washing line), the veranda boy (lane 7: the stilt house's rail) */
+const KID_COUNT = 7;
+/** the grove's kids (GROVE_SLOT, VERANDA_SLOT) are drawn only within this distance — the grove itself hides at 60 m (util/groveLocality.ts) */
+const GROVE_KID_VISIBLE_M = 60;
+const GROVE_KIDS = new Set([GROVE_SLOT, VERANDA_SLOT]);
+/** how far a kid's sun shadow can lie from them (1.12 m tall under the 38° sun → 1.43 m on level ground; margin for a slope and a frame of camera lag) */
+const KID_SHADOW_REACH_M = 2.6;
+/**
+ * Beyond this distance a kid casts no sun shadow (fable-5, 18:04: at the look-backs five kids at
+ * 30–45 m and 20–30 px tall drew 123 submissions, half of them the shadow pass) — a shadow a metre
+ * long at 25 m is a few pixels of the ground's own shade.
+ */
+const KID_SHADOW_FAR_M = 25;
+/** beyond this distance a kid's small parts (belt, buckle, lashes, eyes, boot soles and cuffs, the pouch, the stick) are not drawn */
+const KID_DETAIL_FAR_M = 25;
+const KID_DETAIL_PARTS = new Set(['kid-belt', 'kid-buckle', 'lashes', 'eyeballs', 'boot-sole', 'boot-cuff', 'kid-rope-belt', 'kid-pouch', 'brow', 'mouth', 'eye-white', 'iris', 'pupil', 'deku-stick']);
+/** the ledge girl stands 4 m over the north clearing: her shadow can fall down the ledge face onto its floor */
+const LEDGE_SHADOW_REACH_M = 7;
 
 type LinkSource = 'glb' | 'procedural';
 
@@ -109,10 +125,13 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
   const link: Actor = { ...hardChain('idle'), puppet: linkLoad.puppet, pos: new Vector3(spawn[0], 0, spawn[2]), yaw: Math.PI, phase: 0, idleTurn: 0, look: 0.5, contact: new Vector3(), shadow: createContactShadow(0.36, 0.6), shadowRadius: 0.36 };
   group.add(link.puppet.group, link.shadow);
 
-  // Owner review: keep the background cast hidden while Link's movement is refined.
+  // The background cast — the Kokiri kids, their fairies and shadows. Hidden on the owner's 09-20
+  // request while Link's movement was refined; back since lane 7 (2026-09-23, "the people need to
+  // be updated"): the girl walking her plaza loop by the signpost, the sitter on the steps, the boy
+  // at Saria's door, the ledge and bank girls (demo d_090–d_104 — kids on the path and the bank).
   const backgroundCast = new Group();
   backgroundCast.name = 'background-characters';
-  backgroundCast.visible = false;
+  backgroundCast.visible = true;
   group.add(backgroundCast);
 
   // kid default spots: kokiri-a (stair-foot verge), kokiri-b (plaza west), kokiri-c beside the house door, kokiri-ledge on the raised ledge,
@@ -122,7 +141,7 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
   const fx = house.facing[0] / fl;
   const fz = house.facing[1] / fl;
   const doorKid: V3 = [house.position[0] + fx * (house.trunkRadius + 1.0) + fz * 1.3, 0, house.position[2] + fz * (house.trunkRadius + 1.0) - fx * 1.3];
-  const kidSpots: V3[] = [spot('kokiri-a'), spot('kokiri-b'), doorKid, spot('kokiri-ledge'), [NPC_SOUTH_BANK.x, 0, NPC_SOUTH_BANK.z]];
+  const kidSpots: V3[] = [spot('kokiri-a'), spot('kokiri-b'), doorKid, spot('kokiri-ledge'), [NPC_SOUTH_BANK.x, 0, NPC_SOUTH_BANK.z], [NPC_GROVE_YARD.x, 0, NPC_GROVE_YARD.z], [NPC_GROVE_VERANDA.x, 0, NPC_GROVE_VERANDA.z]];
   const kids: Actor[] = [];
   const kidChars: ReturnType<typeof createKokiri>[] = [];
   for (let i = 0; i < KID_COUNT; i++) {
@@ -151,6 +170,63 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
     rigDraws.after += r.after;
     rigDraws.merged += r.merged;
   }
+
+  // Shadow-pass scoping (lane 7): the sun's shadow window is a 92 m box fitted ahead of the camera
+  // (lighting/index.ts), so every kid in the village is drawn into it each frame — a full set of
+  // submissions per kid whether the camera sees them or not (the cast's return put A at 723
+  // draws). A kid's shadow lies within KID_SHADOW_REACH_M of them: a kid whose sphere of that
+  // radius misses the view frustum cannot shadow a visible pixel, and stops casting until it can.
+  // `castShadow` is no program key, so the toggle recompiles nothing.
+  const kidCasters: Mesh[][] = kids.map((k) => {
+    const meshes: Mesh[] = [];
+    k.puppet.group.traverse((o) => {
+      if ((o as Mesh).isMesh && o.castShadow) meshes.push(o as Mesh);
+    });
+    return meshes;
+  });
+  const kidCasting: boolean[] = kids.map(() => true);
+  // the small parts a kid loses beyond KID_DETAIL_FAR_M (the skinned meshes are named after their first part)
+  const kidDetail: Mesh[][] = kids.map((k) => {
+    const meshes: Mesh[] = [];
+    k.puppet.group.traverse((o) => {
+      if ((o as Mesh).isMesh && KID_DETAIL_PARTS.has(o.name.replace(/^skinned:/, ''))) meshes.push(o as Mesh);
+    });
+    return meshes;
+  });
+  const kidDetailed: boolean[] = kids.map(() => true);
+  const shadowFrustum = new Frustum();
+  const shadowPV = new Matrix4();
+  const shadowSphere = new Sphere();
+  const scopeKidShadows = (camera: Camera) => {
+    camera.updateMatrixWorld();
+    shadowPV.multiplyMatrices(camera.projectionMatrix, shadowPV.copy(camera.matrixWorld).invert());
+    shadowFrustum.setFromProjectionMatrix(shadowPV);
+    for (let i = 0; i < kids.length; i++) {
+      const k = kids[i];
+      k.puppet.group.getWorldPosition(shadowSphere.center);
+      shadowSphere.center.y += 0.7;
+      const dist = shadowSphere.center.distanceTo(camera.position);
+      shadowSphere.radius = i === LEDGE_SLOT ? LEDGE_SHADOW_REACH_M : KID_SHADOW_REACH_M;
+      const on = dist < KID_SHADOW_FAR_M && shadowFrustum.intersectsSphere(shadowSphere);
+      if (on !== kidCasting[i]) {
+        kidCasting[i] = on;
+        for (const m of kidCasters[i]) m.castShadow = on;
+      }
+      // `visible` is no program key either: the far kid keeps its skull, hair, band, tunic, skin and boots
+      const detailed = dist < KID_DETAIL_FAR_M;
+      if (detailed !== kidDetailed[i]) {
+        kidDetailed[i] = detailed;
+        for (const m of kidDetail[i]) m.visible = detailed;
+      }
+      if (GROVE_KIDS.has(i)) {
+        const shown = dist < GROVE_KID_VISIBLE_M;
+        if (k.puppet.group.visible !== shown) {
+          k.puppet.group.visible = shown;
+          k.shadow.visible = shown;
+        }
+      }
+    }
+  };
 
   const navi = createNavi();
   group.add(navi.group);
@@ -264,11 +340,21 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
   let speed = 0;
   const moveDir = new Vector3(0, 0, -1);
   let jumpHeld = false;
+  /** the sign toggle (T): held state for the press edge, and whether the sign is up — kept across a clock-jump reset, cleared on entering play */
+  let signHeld = false;
+  let signUp = false;
+  /** Navi's eased lead (m) and whether her play-mode anchor has been placed since the last reset */
+  let naviLead = 0;
+  let naviInit = false;
+  const naviGoal = new Vector3();
   const resetLocomotion = () => {
     loco = createLocomotion();
     speed = 0;
     jumpHeld = false;
+    signHeld = false;
     velocity.set(0, 0, 0);
+    naviLead = 0;
+    naviInit = false;
   };
   const player: PlayerHandle = {
     position: link.pos,
@@ -281,6 +367,7 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
         mode = 'play';
         view = null;
         camPose = null;
+        signUp = false;
         resetLocomotion();
       } else {
         mode = 'free';
@@ -294,24 +381,59 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
       input.moveZ = i.moveZ;
       input.run = i.run;
       input.jump = !!i.jump;
+      input.sign = !!i.sign;
     },
+    groundHeight: (x, z) => ground.height(x, z),
+    surfaceHeight: (x, z) => ground.surface(x, z),
     feetContact: () => link.puppet.feetContact().map((f) => ({ gapM: f.gapM, minShoeGapM: f.minShoeGapM, stance: f.stance })),
+    blockedAt: (x, z) => ground.blocked(x, z),
+    place(x, z, yaw) {
+      link.pos.set(x, 0, z);
+      link.yaw = yaw;
+      resetLocomotion();
+    },
   };
   ctx.scene.userData[PLAYER_KEY] = player;
 
-  /** move the root by (dx, dz) if the step is walkable (no structure pad, no riser above the 0.55 m step guard); returns the distance moved */
-  const moveRoot = (dx: number, dz: number, dt: number): number => {
+  /** a step is walkable onto no structure pad and no riser above the 0.55 m step guard */
+  const walkable = (dx: number, dz: number, h0: number) => {
     const nx = link.pos.x + dx;
     const nz = link.pos.z + dz;
+    return ground.height(nx, nz) - h0 < 0.55 && !ground.blocked(nx, nz);
+  };
+  /**
+   * Turns (rad) tried when the straight step is blocked: the step turned either way and shortened
+   * to its component along the turn, so Link slides along an edge he meets at a slant (the rope
+   * bridge's 1 m walk, a wall) instead of stopping dead; head-on he still stops.
+   */
+  const SLIDE_TURNS = [0.6, 1.1];
+  /** move the root by (dx, dz), or along the blocking edge; returns the distance moved */
+  const moveRoot = (dx: number, dz: number, dt: number): number => {
     const h0 = ground.height(link.pos.x, link.pos.z);
-    const h1 = ground.height(nx, nz);
-    if (h1 - h0 < 0.55 && !ground.blocked(nx, nz)) {
-      velocity.set(dx / Math.max(dt, 1e-4), 0, dz / Math.max(dt, 1e-4));
-      link.pos.set(nx, 0, nz);
-      return Math.hypot(dx, dz);
+    let sx = dx;
+    let sz = dz;
+    let ok = walkable(dx, dz, h0);
+    for (let i = 0; !ok && i < SLIDE_TURNS.length; i++) {
+      const c = Math.cos(SLIDE_TURNS[i]);
+      for (const side of [1, -1]) {
+        const s = Math.sin(SLIDE_TURNS[i]) * side;
+        const rx = (dx * c - dz * s) * c;
+        const rz = (dx * s + dz * c) * c;
+        if (walkable(rx, rz, h0)) {
+          sx = rx;
+          sz = rz;
+          ok = true;
+          break;
+        }
+      }
     }
-    velocity.set(0, 0, 0);
-    return 0;
+    if (!ok) {
+      velocity.set(0, 0, 0);
+      return 0;
+    }
+    velocity.set(sx / Math.max(dt, 1e-4), 0, sz / Math.max(dt, 1e-4));
+    link.pos.set(link.pos.x + sx, 0, link.pos.z + sz);
+    return Math.hypot(sx, sz);
   };
 
   const stepPlayer = (dt: number, t: number) => {
@@ -321,6 +443,9 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
     // a jump starts on the press (never repeats while held) from the ground, crouch first
     if (input.jump && !jumpHeld && !j) loco.jump = { phase: 'crouch', t0: t, y0: 0, y: 0, v0: 0, vx: 0, vz: 0, vLand: 0, flightS: 0, air: 0 };
     jumpHeld = !!input.jump;
+    if (input.sign && !signHeld) signUp = !signUp;
+    signHeld = !!input.sign;
+    loco.sign = signUp;
     let ds = 0;
     if (j && j.phase === 'air') {
       // ballistic: the take-off velocity carried, gravity on the root; the arc meets the ground.
@@ -393,13 +518,23 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
     // the clips follow the ground covered (Puppet.advance), the pose reads the step
     link.puppet.advance?.(link, t, ds, dt);
     loco.speed = ds / Math.max(dt, 1e-4);
-    // Navi orbits the head, leading when Link moves
-    const lead = velocity.length() > 0.2 ? 0.7 : 0;
-    naviAnchor.set(
-      link.pos.x + 0.45 * Math.sin(t * 0.5) + Math.sin(link.yaw) * lead,
+    // Navi hovers by the head, leading when Link moves. Opus 2026-09-25 (owner: his head turned
+    // slowly right → left, then snapped to the right): her world-space orbit used to carry her
+    // through his back every 12.6 s and the lead jumped 0.7 m at 0.2 m/s. The lead now eases with
+    // the speed, the orbit swings about his front-left (never behind him) and the anchor is
+    // low-passed, so the look target is continuous.
+    const leadTarget = 0.7 * MathUtils.smoothstep(velocity.length(), 0.1, 0.8);
+    naviLead += (leadTarget - naviLead) * (1 - Math.exp(-dt / 0.35));
+    const orbit = link.yaw + 0.5 + 0.9 * Math.sin(t * 0.5);
+    naviGoal.set(
+      link.pos.x + 0.45 * Math.sin(orbit) + Math.sin(link.yaw) * naviLead,
       ground.height(link.pos.x, link.pos.z) + 1.4 + 0.05 * Math.sin(t * 0.8),
-      link.pos.z + 0.45 * Math.cos(t * 0.5) + Math.cos(link.yaw) * lead,
+      link.pos.z + 0.45 * Math.cos(orbit) + Math.cos(link.yaw) * naviLead,
     );
+    if (!naviInit) {
+      naviAnchor.copy(naviGoal);
+      naviInit = true;
+    } else naviAnchor.lerp(naviGoal, 1 - Math.exp(-dt / 0.25));
   };
 
   const poseActor = (a: Actor, t: number, look: Vector3 | null) => {
@@ -458,10 +593,20 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
       triangles: countTriangles(),
       linkTriangles: link.puppet.triangles,
       linkHeight: link.puppet.height,
+      /** the held sign (T, play mode): toggled up, and the raise clock the arms and the sign follow (0 down … 1 up) */
+      linkSign: { up: signUp, raise: Number(loco.signRaise.toFixed(3)) },
       /** rig meshes before / after the per-joint merge (consolidate.ts), and the merged meshes made */
       rigMeshesBeforeMerge: rigDraws.before,
       rigMeshes: rigDraws.after,
       rigMergedMeshes: rigDraws.merged,
+      /** lane 7: which kids cast a sun shadow this frame (their shadow reach meets the view) and the shadow-pass meshes each holds */
+      kidShadowCasting: kidCasting.slice(),
+      kidShadowMeshes: kidCasters.map((m) => m.length),
+      kidDetailed: kidDetailed.slice(),
+      kidDetailMeshes: kidDetail.map((m) => m.length),
+      kidFarM: { shadow: KID_SHADOW_FAR_M, detail: KID_DETAIL_FAR_M },
+      /** lane 7 (skin.ts): each kid's part meshes before → skinned meshes after, and the bones they ride */
+      kidSkinned: kidChars.map((c) => c.rig.root.userData.skinned ?? null),
       mode,
       view,
       linkGait: link.gait,
@@ -564,8 +709,16 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
       navi.velocity.copy(mode === 'play' ? velocity : tmpD.set(0, 0, 0));
       navi.position(t, naviPos);
       poseActor(link, t, naviPos);
-      for (let i = 0; i < kids.length; i++) if (!npcs.drive(i, kids[i], t, mode === 'view')) poseActor(kids[i], t, null);
+      // the kids notice Link off the fixed views (npc.ts noticePlayer): the driven kids inside drive(),
+      // the boy at the door after his idle pose here
+      const player = mode === 'view' ? null : link.pos;
+      for (let i = 0; i < kids.length; i++) {
+        if (npcs.drive(i, kids[i], t, mode === 'view', player)) continue;
+        poseActor(kids[i], t, null);
+        if (player) npcs.notice(kidChars[i].rig, kids[i], player);
+      }
       npcs.updateFairies(t);
+      scopeKidShadows(c.camera);
       navi.update(t, c.renderer.getPixelRatio());
     },
   };

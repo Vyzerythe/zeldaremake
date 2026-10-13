@@ -8,6 +8,25 @@ Per-agent progress lives in `.agents/<agent>.md`; the live picture is the Direct
 `gauntlet/reports/verify-exit.json` — see GAUNTLET.md §6) with **Phase 2 (Link) and Phase 3
 (HUD) content landed in parallel** since take-0025 so the frames can be compared whole.
 
+## Fork experimental integration (Vyzerythe/zeldaremake, 2026-10-13)
+An experimental branch on the fork joins `main` (`67b801db`) with upstream's newest
+development line `cursor/squad2-matswap-682b` (`90db14d7` = integration branch
+`cursor/kokiri-world-phase1-f65e` `1232f1d3` + 221 squad2 performance commits). The two
+histories only shared the initial commit, so the world, tooling and tests come from the
+upstream line. Main's unique, still-valid work is carried on top:
+- Link: planted-boot ground tilt (`4cf09bc5`), head-snap fix and play-mode body/Navi
+  (`7ac5fa5a` from `agent/opus-cinematic-sept24`).
+- Trees: LOD pool admission recheck (`e7fa0811`) with its tests.
+- `broll.mjs` exact frame timing (`7f645fe9`), merged-pebble test (`664f3418`), Windows test
+  path fix, plus all main-only Link art, provenance and checkpoint evidence.
+Main's distant close crowns (`1d5f1280`) and its tree/NPC/camera holds are **not** carried:
+the upstream line reworked those systems after the checkpoint. Reviewed or pixel-identical
+side branches are merged on top as separate merge commits. Known open points inherited
+from upstream: the north/south expansions landed with open reviewer rubric findings
+(south ≈146/200 against a 170 bar),
+squad2's commits after 2026-09-26 are author-measured only, and the `stairs1-base` look spot
+renders near-black because the follow camera does not clear a close occluder.
+
 ## Latest integrated milestone
 On 2026-09-23 at 20:34 UTC, PR #33 published the reviewed cinematic checkpoint on
 `main` as `c5d4aec9`. Tag `cinematic-2026-09-23` pins source `e599075f`; the merge

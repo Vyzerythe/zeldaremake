@@ -17,9 +17,13 @@
  */
 import { Frustum, Group, InstancedMesh, Matrix4, Sphere, Vector3, type BufferGeometry } from 'three';
 import type { WorldContext, WorldSystem } from '../system';
-import { expansionVisible } from '../util/expansionLocality';
+import { createButterflies } from './butterflies';
+import { expansionVisible, southVisible } from '../util/expansionLocality';
+import { groveVisible } from '../util/groveLocality';
 import { buildCarpet, CLUMP_CELL, MAT_CELL, type CarpetResult } from './carpet';
-import { buildExpansionVegetation, templateOf, type ExpansionVegetation } from './expansion';
+import { buildExpansionVegetation, templateOf, type ExpansionTemplates, type ExpansionVegetation } from './expansion';
+import { buildExpansionNorthVegetation, type GroveVegetation } from './expansionNorth';
+import { buildExpansionSouthVegetation } from './expansionSouth';
 import { VegField } from './field';
 import { buildGrass, GRASS_TYPE_NAMES, type GrassResult } from './grass';
 import { buildLitter, LEAF_TINTS, type LitterResult } from './litter';
@@ -61,30 +65,40 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
   const litter: LitterResult = buildLitter(ctx, field, litterMaterial, litterGroup);
   ctx.progress('vegetation', 0.96);
 
+  // backlog item 5 (the owner: "falling leaves, fireflies, butterflies — gentle life in the air,
+  // not spectacle"): the leaves and the motes are the atmosphere's; the butterflies are ours
+  // because they are anchored to the violet clumps the verge passes seat — where the flowers
+  // gather, so do they (butterflies.ts)
+  const butterflies = createButterflies(ctx, plants.flowers.items);
+  group.add(butterflies.mesh);
+
   // round 50 (expansion.ts): the round-49 expansion's own ground, dressed against the LIVE view
   // with the disc sets' geometry and materials; its group shows only when the camera can see the
   // locality (util/expansionLocality.ts), so the six fixed frames pay nothing for it
-  const expansion: ExpansionVegetation = buildExpansionVegetation(
-    ctx,
-    {
-      tufts: templateOf(plants.tufts),
-      ferns: templateOf(plants.ferns),
-      moss: templateOf(plants.moss),
-      flowers: templateOf(plants.flowers),
-      whiteFlowers: templateOf(plants.whiteFlowers),
-      bushes: templateOf(plants.bushes),
-      weeds: templateOf(plants.weeds),
-      clumps: { ...templateOf(carpet.clumps), tiles: carpet.atlas.clumpTiles },
-      mats: { ...templateOf(carpet.mats), tiles: carpet.atlas.matTiles },
-      leaves: { ...templateOf(litter.leaves), tints: LEAF_TINTS.map((c) => [c.r, c.g, c.b] as [number, number, number]) },
-    },
-    group,
-  );
+  const templates: ExpansionTemplates = {
+    tufts: templateOf(plants.tufts),
+    ferns: templateOf(plants.ferns),
+    moss: templateOf(plants.moss),
+    flowers: templateOf(plants.flowers),
+    whiteFlowers: templateOf(plants.whiteFlowers),
+    bushes: templateOf(plants.bushes),
+    weeds: templateOf(plants.weeds),
+    clumps: { ...templateOf(carpet.clumps), tiles: carpet.atlas.clumpTiles },
+    mats: { ...templateOf(carpet.mats), tiles: carpet.atlas.matTiles },
+    leaves: { ...templateOf(litter.leaves), tints: LEAF_TINTS.map((c) => [c.r, c.g, c.b] as [number, number, number]) },
+  };
+  const expansion: ExpansionVegetation = buildExpansionVegetation(ctx, templates, group);
+  // round 56 (expansionSouth.ts): the south exit's live ground — the ravine, the path's verges,
+  // the far bank — shown only where the camera can see that locality
+  const south: ExpansionVegetation = buildExpansionSouthVegetation(ctx, { ...templates, heroFerns: templateOf(plants.heroFerns) }, group);
+  // 2026-09-24 (expansionNorth.ts): the north grove's live ground, shown only near the grove, in
+  // view; its lawn's blade tiles draw with the village turf's grass material
+  const grove: GroveVegetation = buildExpansionNorthVegetation(ctx, { ...templates, heroFerns: templateOf(plants.heroFerns) }, { mats: [carpet.mats, carpet.northMats], cards: [carpet.clumps, carpet.northClumps] }, grassMaterial, group);
   ctx.progress('vegetation', 1);
 
   const buildMs = performance.now() - t0;
   const camPos = new Vector3();
-  const sets = [...plants.all, ...carpet.all, ...litter.all, ...expansion.sets];
+  const sets = [...plants.all, ...carpet.all, ...litter.all, ...expansion.sets, ...south.sets, ...grove.sets];
   let disposed = false;
 
   // unit vector toward the sun for the shadow sweep: the live light when there is one (same
@@ -141,6 +155,9 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
     grass.cull(camera, force);
     // round 50: the expansion's plants show only where the camera can see the locality
     expansion.group.visible = expansionVisible(camera, expansion.spheres);
+    south.group.visible = southVisible(camera, south.spheres);
+    grove.group.visible = groveVisible(camera, grove.spheres);
+    grove.blades.update(camPos);
     const sun = currentSun();
     let budget = REBUCKET_BUDGET;
     let listed = 0;
@@ -189,11 +206,16 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
   refresh(true);
 
   /** false for an expansion set while its group is hidden (the locality is out of view) */
-  const shown = (s: (typeof sets)[number]) => expansion.group.visible || !expansion.sets.includes(s);
+  const shown = (s: (typeof sets)[number]) =>
+    (expansion.group.visible || !expansion.sets.includes(s)) && (south.group.visible || !south.sets.includes(s)) && (grove.group.visible || !grove.sets.includes(s));
 
   const drawable = () => {
     let drawCalls = grass.visible.drawCalls;
     let triangles = grass.visible.triangles;
+    if (grove.group.visible) {
+      drawCalls += grove.blades.visible.drawCalls;
+      triangles += grove.blades.visible.triangles;
+    }
     for (const s of sets) {
       if (!shown(s)) continue;
       const st = s.stats();
@@ -254,6 +276,7 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
       r.triangles += tris * mesh.count * (colour + depth);
     };
     for (const t of grass.tiles) add(`grass-lod${t.lod}`, t.mesh, t.mesh.visible ? t.count : 0, t.mesh.geometry.index!.count / 3);
+    for (const t of grove.blades.tiles) add(`grove-blades-lod${t.lod}`, t.mesh, t.mesh.visible ? t.count : 0, t.mesh.geometry.index!.count / 3, grove.group.visible);
     for (const s of sets) for (const m of s.submission()) add(`${s.opts.name}-lod${m.lod}`, m.mesh, m.bucket, m.triangles, shown(s));
     let drawCalls = 0;
     let triangles = 0;
@@ -366,6 +389,22 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
       passes: expansion.counts,
       liveView: true,
     },
+    /** round 56 (expansionSouth.ts): the south exit's own live-view sets, per set and per pass, and whether their group is shown at the audit's pose */
+    south: {
+      visible: south.group.visible,
+      sets: Object.fromEntries(south.sets.map((s) => [s.opts.name, s.count])),
+      instances: south.sets.reduce((n, s) => n + s.count, 0),
+      passes: south.counts,
+    },
+    /** 2026-09-24 (expansionNorth.ts): the north grove's own live-view sets, per set and per pass, and whether their group is shown at the audit's pose */
+    grove: {
+      visible: grove.group.visible,
+      sets: Object.fromEntries(grove.sets.map((s) => [s.opts.name, s.count])),
+      instances: grove.sets.reduce((n, s) => n + s.count, 0),
+      passes: grove.counts,
+      /** the lawn's blade tiles (the grass material, grass.ts's LODs): built blades per type, what the audit's pose draws */
+      blades: { tiles: grove.blades.tiles.length, count: grove.blades.count, typeCounts: grove.blades.typeCounts, visible: { ...grove.blades.visible } },
+    },
     /**
      * round 50 (edges.ts): W06's rim band at the paved rims E / D / B frame (the turf pulled back
      * to a noisy line, soil mats in the band, moss cushions, lip tufts, leaves in the angle) and
@@ -391,13 +430,16 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
       clumps: carpet.samples.clumps,
       turfMats: carpet.samples.mats,
     },
+    /** backlog item 5: butterflies over the flower verges, and the clumps that got one */
+    butterflies: { count: butterflies.count, anchors: butterflies.anchors },
   }));
 
   return {
     name: 'vegetation',
     group,
-    update() {
+    update(_dt, t) {
       refresh();
+      butterflies.update(t);
     },
     onCameraMove(camera) {
       refresh(true, camera);
@@ -414,6 +456,7 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
     dispose() {
       if (disposed) return;
       disposed = true;
+      butterflies.dispose();
       // Grass swaps geometries on one mesh, so traversal alone misses dormant LODs.
       const geometries = new Set<BufferGeometry>();
       for (const tile of grass.tiles) for (const geometry of tile.lods) geometries.add(geometry);
@@ -426,6 +469,7 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
         for (const variant of set.opts.variants) for (const geometry of variant) geometries.add(geometry);
       }
       for (const geometry of geometries) geometry.dispose();
+      grove.blades.dispose();
       grassMaterial.dispose();
       litterMaterial.dispose();
       for (const m of plants.materials) m.dispose();

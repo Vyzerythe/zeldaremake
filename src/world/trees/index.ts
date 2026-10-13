@@ -21,23 +21,28 @@
  * instances that can reach the image (see "submission culling" below). Everything is seated via
  * ctx.terrain.height; randomness only via ctx.rng.
  */
-import { BufferAttribute, BufferGeometry, Color, DynamicDrawUsage, Frustum, Group, InstancedBufferAttribute, InstancedMesh, Matrix4, Mesh, Quaternion, Sphere, Vector3, Vector4, type Camera, type Material } from 'three';
+import { BatchedMesh, Box3, BufferAttribute, BufferGeometry, Color, DynamicDrawUsage, Frustum, MeshBasicMaterial, Group, InstancedBufferAttribute, InstancedMesh, Matrix4, Mesh, type Object3D, Quaternion, Sphere, Vector3, type Camera, type Material } from 'three';
 import type { TrunkSeat, WorldContext, WorldSystem } from '../system';
 import { BARK_DETAIL_M, BARK_DETAIL_TILES, BARK_TOUCH_M, BARK_TOUCH_TILES, CARD_EDGE_FADE, CARD_FLAT_EDGE_FADE, COLUMN_BARK_FLOOR, COLUMN_BARK_FLOOR_FAR, COLUMN_FLOOR_FADE_M, createTreeMaterials, CUSHION_FADE_M, DISTANT_BARK_M, DISTANT_NEAR_FLOOR, DISTANT_NEAR_TONE, NEAR_BASE_FLOOR, NEAR_BOLE_FLOOR, NEAR_BOLE_FLOOR_FADE, NEAR_BOLE_FLOOR_TOP, NEAR_BOLE_SLOTS, NEAR_CANOPY_LEAF_FLOOR, NEAR_CANOPY_LEAF_NEAR_M, NEAR_CANOPY_SLOTS, NEAR_CANOPY_SUN_THROUGH, TREE_BARK_FLOOR, TREE_BARK_FLOOR_NEAR, TREE_FLOOR_FADE_M, TREE_LEAF_FLOOR, TREE_LEAF_FLOOR_NEAR, TREE_NEAR_BOLE_FLOOR } from './materials';
 import type { ShadeFloor } from '../materials/shadeFloor';
-import { authoredWhiteBarks, createWhiteBarkRoots, createWhiteBarkTree, whiteBarkParams, whiteBarkTilt, type TreeAsset, type WhiteBarkParams, CLEARING_WHITE_BARKS } from './whitebark';
-import { placeWhiteBark, viewProjector, type WhiteBarkPlacement } from './placement';
+import { authoredWhiteBarks, createWhiteBarkRoots, createWhiteBarkTree, whiteBarkParams, whiteBarkTilt, type RootPlacement, type TreeAsset, type WhiteBarkParams, CLEARING_WHITE_BARKS } from './whitebark';
+import { createUnderstoryTree, understoryParams, type UnderstoryParams } from './understory';
+import { placeWhiteBark, treeGroundBlocked, viewProjector, type WhiteBarkPlacement } from './placement';
 import { columnParams, createColumnTree, emergentParams, hutHostParams, type ColumnAsset, type ColumnParams } from './column';
-import { expansionCull, getTerrain, type Terrain, type TerrainView } from '../terrain/heightfield';
+import { expansionCull, getTerrain, southFooting, southRouteSurface, westExpansionCull, type Terrain, type TerrainView } from '../terrain/heightfield';
+import { smoothstep } from '../util/noise';
 import { casterSpheres, expansionVisible, type Caster } from '../util/expansionLocality';
-import { EXPANSION } from '../layout';
+import { EXPANSION, EXPANSION_SOUTH, inExpansionSouth, southPathLine } from '../layout';
+import { inExpansionNorth } from '../layout';
+import { groveDeckDistance, groveGroundDistance, groveWalkDistance, northGroveClear, northGroveHuts } from '../terrain/north';
+import { groveNearXZ } from '../util/groveLocality';
+import { bandOverlaps, lodSlots, lodWeightKey, oneMaterialWanted, TREE_LOD_DITHER, TREE_LOD_DITHER_BAND_M } from './lodFade';
 import { createGiantTree, LOBE_SECONDARY_REACH, LOBE_TWIG_REACH, LOBE_TWIG_TINT, NEAR_BASE_CUT_Y, NEAR_BASE_RADIUS_OVERRIDE, NEAR_BASE_RADIUS_OVERRIDE_LARGE, type CanopyBough, type GiantAsset, type GiantProfile } from './giant';
 import { NEAR_CANOPY_IN_M, NEAR_CANOPY_MAX_Y, NEAR_CANOPY_OUT_M, type NearCanopyPart } from './nearCanopy';
 import { LodPool, type PoolBuilt, type PoolItem } from './lodPool';
 import type { GiantTreeDef } from '../layout';
 import type { RootKitFit } from './rootkit';
-import { createDistantCrownMaterial, createDistantVariants, CROWN_ALPHA_TEST, CROWN_CORE_DARK, CROWN_JITTER, CROWN_RIM, CROWN_SPHERE_MIX, DISTANT_BOLE_BANDS, DISTANT_CORDS, DISTANT_CROWN_TOP, DISTANT_DEPTH_COOL, DISTANT_FLARE, DISTANT_FLARE_FALL, DISTANT_FOOT_GRIME, DISTANT_FURROW_SHADE, DISTANT_NEAR_GAIN, DISTANT_ROOT_ARC, DISTANT_SIDES, distantClearanceTally, FAR_CROWN_CARD_HALF, FAR_CROWN_CARDS, FAR_CROWN_LOBES, LIMB_REACH, LIMB_TINT_FROM, LIMB_TINT_TO, LIMB_TIP_TINT, placeDistantTrees, type DepthBand, type DistantClearance, type DistantPlacement, type DistantVariant } from './distant';
-import { cloneDistantCloseMaterial, createDistantCloseCrown, DISTANT_CLOSE_FADE_M, DISTANT_CLOSE_PREFETCH_M, DISTANT_CLOSE_SLOTS, DISTANT_CLOSE_TRIANGLES, updateDistantCloseSlots, type DistantCloseCrown, type DistantCloseSlot } from './distant';
+import { createDistantCrownMaterial, createDistantVariants, createMidVariants, CROWN_ALPHA_TEST, CROWN_CORE_DARK, CROWN_JITTER, CROWN_RIM, CROWN_SPHERE_MIX, DISTANT_BOLE_BANDS, DISTANT_CORDS, DISTANT_CROWN_TOP, DISTANT_DEPTH_COOL, DISTANT_FLARE, DISTANT_FLARE_FALL, DISTANT_FOOT_GRIME, DISTANT_FURROW_SHADE, DISTANT_NEAR_GAIN, DISTANT_ROOT_ARC, DISTANT_SIDES, distantClearanceTally, ONE_MATERIAL_ENTER_M, ONE_MATERIAL_LEAVE_M, TREE_ONE_MATERIAL_FAR, FAR_CROWN_CARD_HALF, FAR_CROWN_CARDS, FAR_CROWN_LOBES, LIMB_REACH, LIMB_TINT_FROM, LIMB_TINT_TO, LIMB_TIP_TINT, MID_CROWN_LOOK, MID_FAR_LOD_M, MID_HEIGHTS, MID_SPECS, MID_TRUNK_R, placeDistantTrees, placeMidTrees, type DepthBand, type DistantClearance, type DistantPlacement, type DistantVariant } from './distant';
 import { TAU, isCushionRoot, mergeParts, type Detail } from './writer';
 import type { ViewGap } from './placement';
 
@@ -49,6 +54,7 @@ const ROOT_KIT = import.meta.env.VITE_ROOT_KIT === '1';
 const ROOT_KIT_BOLES = ['stair-bank-giant', 'plaza-south'];
 import { CANOPY_OPENINGS, CANOPY_OPENING_COLLAR, CANOPY_OPENING_DENSIFY, SHAFT_COLUMNS } from './corridors';
 import { trunkSeatFromRings, tubePathFromRings } from './tubePath';
+import { createShadowReach } from '../util/shadowReach';
 
 const DETAILS: Detail[] = ['high', 'medium', 'low'];
 const WHITE_VARIANTS = 10;
@@ -1354,6 +1360,29 @@ function spineDistance(spine: [number, number][], x: number, z: number): number 
   }
   return best;
 }
+/** round 56: a trunk's footing ring on the south exit (heightfield `southFooting`): a bole and its flare keep this far off the paving and the log (m) … */
+const SOUTH_TRUNK_REACH_M = 1.5;
+/** … and its own rim this far off the gorge's lip (m): rim trees stay, their crowns over the ravine */
+const SOUTH_LIP_MARGIN_M = 0.3;
+/** round 56: the mid grove's crown cards keep this far off the south route's line — fable-5's 3–7 m "flat card piles" band (m) */
+const MID_SOUTH_WALK_MIN_M = 7.5;
+/** the south route's walk line: the path to the north sill, the bridge's axis, the far path to the log's mouth */
+const SOUTH_WALK_XZ: [number, number][] = [
+  ...southPathLine().map((p) => [p[0], p[2]] as [number, number]),
+  ...EXPANSION_SOUTH.farPath.map((p) => [p[0], p[2]] as [number, number]),
+  [EXPANSION_SOUTH.tunnel.mouth[0], EXPANSION_SOUTH.tunnel.mouth[1]],
+];
+const southWalkDistance = (x: number, z: number) => spineDistance(SOUTH_WALK_XZ, x, z);
+/** round 56: a south giant's far roots dive under the south paving from this far short of its edge (m; giant.ts `rootPressAt`) */
+const SOUTH_ROOT_PRESS_M = 0.4;
+const southRootPress = (x: number, z: number) => {
+  let m = southRouteSurface(x, z);
+  for (let i = 0; i < 8 && m < 1; i++) {
+    const t = (i / 8) * Math.PI * 2;
+    m = Math.max(m, southRouteSurface(x + Math.cos(t) * SOUTH_ROOT_PRESS_M, z + Math.sin(t) * SOUTH_ROOT_PRESS_M));
+  }
+  return m;
+};
 /**
  * Column trees (column.ts) — the dark boles of the mid-distance forest wall (round 13).
  *
@@ -1552,7 +1581,7 @@ const NEAR_LOD_TIERS: Record<NearLodTier['name'], NearLodTier> = {
    * bases (≈ 1.4 MB each), so neither pool can churn on a walk. What is DRAWN in a fixed frame does not
    * depend on a pool cap; the canopy swap itself stays 26 / 30.
    */
-  large: { name: 'large', canopyPoolBytes: 256 << 20, basePoolBytes: 48 << 20, canopyPrefetchM: 42, basePrefetchM: 38, baseBand: [25, 28], canopySwapM: [NEAR_CANOPY_IN_M, NEAR_CANOPY_OUT_M] },
+  large: { name: 'large', canopyPoolBytes: 256 << 20, basePoolBytes: 48 << 20, canopyPrefetchM: 42, basePrefetchM: 54, baseBand: [25, 28], canopySwapM: [NEAR_CANOPY_IN_M, NEAR_CANOPY_OUT_M] },
   /**
    * 64 MB holds ≈ 140 of the 364 canopy parts (0.47 MB each on average): the drawn set is 41–51
    * parts / 17.5–21 MB on the plaza→stairs walk and the parts within 26 m of the camera come to
@@ -1566,10 +1595,92 @@ const deviceMemoryGB = (): number => {
   const n = typeof navigator === 'undefined' ? undefined : (navigator as Navigator & { deviceMemory?: number }).deviceMemory;
   return typeof n === 'number' && Number.isFinite(n) && n > 0 ? n : 4;
 };
+/**
+ * The large tier unless the browser reports under 4 GB: Safari and Firefox report nothing (→ 4), and
+ * on the small tier the owner walked past boles still drawn as their smooth far bases ("why don't the
+ * trees immediately spawn instead of needing me to get close", 2026-09-23 20:08).
+ */
 const nearLodTierFor = (deviceGB: number, poolParam: string | null): NearLodTier => {
   if (poolParam === 'large' || poolParam === 'small') return NEAR_LOD_TIERS[poolParam];
-  return deviceGB >= 8 ? NEAR_LOD_TIERS.large : NEAR_LOD_TIERS.small;
+  return deviceGB >= 4 ? NEAR_LOD_TIERS.large : NEAR_LOD_TIERS.small;
 };
+/**
+ * The white-barks' and columns' three-LOD ladder: high inside `TREE_LOD_NEAR_M`, medium inside
+ * `TREE_LOD_MID_M`, low beyond (× `ctx.quality.distance`). The detail between the rungs is large —
+ * `writer.ts addLeaf` keeps every 4th lamina at medium and every 8th at low, enlarged to hold the
+ * crown's coverage, and `tube` drops the finest twigs — so where a rung falls inside what the player
+ * looks at, the crown visibly gains leaves as he walks in.
+ *
+ * 2026-09-23 (owner 20:08, "why don't the trees immediately spawn instead of needing me to get
+ * close"). Measured with `?treelod=` at his 06:50 north pose (`diffmap.mjs`, > 8 levels): drawing
+ * every tree at its highest LOD changes 5.57 % of the frame, and ALL of it is this first rung — the
+ * medium→low rung at 44 m accounts for 0.00 %. The rung was 20 m, i.e. inside the crowns he walks
+ * toward. 28 m is what the budget pays for: a white-bark's high LOD is ≈ 150 K triangles, so each
+ * extra tree promoted is expensive, and camera A sits 0.05 M under W38's 9 M gate. The 8 m is paid
+ * for out of `DISTANT_NEAR_M` below, which was buying nothing.
+ */
+/**
+ * The high→medium rung (m). 20 m through round 53, 28 after the treepop round, and 32 after the 18:20
+ * health check attributed the whole of the residual pop to this rung: with every tree forced high
+ * (`?treelod=10`) the owner's walking poses differ from the shipped rungs by 2.06 % and 2.24 % of the
+ * frame, and opening THIS gate to 40.6 m takes that to 0.10 % while opening the medium→low rung or the
+ * distant gate changes nothing. A tree between the rung and ≈ 41 m is on its medium LOD and fills out
+ * as he closes, which is his "the trees … only get detailed when I come up close".
+ *
+ * 40.6 m is not affordable: `pose-counts.mjs` puts camera A at 9.17 M triangles, 171 k OVER the 9 M cap
+ * (D left with 41 k). 32 m with the distant gate below pulled in to pay for it fits with room and takes
+ * draws DOWN — A 8.91 M / 620 draws (89 k headroom, −19 draws), B and E −49 k, C −20 k, D 8.69 M (+52 k),
+ * F +14 k — the same trade the treepop round made when it moved this rung from 20 to 28.
+ */
+const TREE_LOD_NEAR_M = 32;
+/**
+ * The distant / mid layers' near→far gate (m, × `ctx.quality.distance`). 120 m through round 51; the
+ * same measurement shows the near LOD's bent trunk, cords and root toes at 72–120 m — behind 60–86 %
+ * of the height fog — are worth 0.04 % of the frame, while they cost A 15 draws and the triangles the
+ * rung above needs. The mid grove's own 40 m gate stays under this and unchanged; the north stand's
+ * 50 m rule (round 51) sat above 45 and is retired (see `bucketDistant`).
+ */
+const DISTANT_NEAR_M = 45;
+/**
+ * The medium→low rung (m). 59 m was tried at 19:00 and backed out: it cost the owner's walking poses
+ * +0.51 % and +0.75 % of their triangles (+45 k, +51 k) and the hero views up to +54 k, and the frame
+ * did not change — with every tree forced high (`?treelod=10`) those poses differ from the shipped
+ * rungs by 2.06 % and 2.24 % at 44 m and by 2.06 % and 2.24 % at 59 m, to the second decimal. The
+ * medium and high LODs of a tree at 44-60 m read the same at that range; the close-only detail those
+ * two per cent measure belongs to another gate, and finding which is the open question (the candidates
+ * are `DISTANT_NEAR_M` and the giants' near-canopy swap band, both reachable with `?treelod=`).
+ *
+ * 2026-09-27: bracketed from both sides at the owner's 06:50 north pose (`?treelod=1,<k>,1`,
+ * `diffmap.mjs`, > 8 levels), because "the rung is neutral outward" invites the guess that it is
+ * neutral inward too and can be pulled in for free. It cannot:
+ *
+ *   70 m (k 1.6)  0.01 % of the frame   — outward buys nothing, as round 53's 59 m test found
+ *   35 m (k 0.8)  0.71 % of the frame   — inward thins the 35-44 m trees visibly
+ *
+ * so 44 m is the edge itself: the medium rung's extra laminae still read at 35-44 m and stop reading
+ * past it. Moving this gate costs either triangles for no frame or frame for a few triangles.
+ */
+const TREE_LOD_MID_M = 44;
+/**
+ * Dev measurement knob, the same shape as `?pool=large|small`: `?treelod=<multiplier>` scales every
+ * instanced tree LOD swap distance (the white-barks' and columns' ladder, the distant layer's and the
+ * mid grove's near gates). `?treelod=10` draws every tree at its highest LOD from any range, so one
+ * pose rendered with and without it measures exactly how much of the frame is detail that appears
+ * only when the player gets close — the owner's "why don't the trees immediately spawn instead of
+ * needing me to get close" (2026-09-23 20:08). 1 = shipped, and the take / CI path never sets it.
+ */
+const TREE_LOD_SCALE: [number, number, number, number] = (() => {
+  if (typeof location === 'undefined') return [1, 1, 1, 1];
+  const raw = new URLSearchParams(location.search).get('treelod');
+  if (!raw) return [1, 1, 1, 1];
+  // "1.8" scales every gate; "1.8,2.6,0.6,1.5" scales the high→medium rung, the medium→low rung, the
+  // distant / mid layers' near gate and the giants' near-CANOPY swap band separately, so each can be
+  // priced and read on its own
+  const ok = (n: number) => (Number.isFinite(n) && n > 0 ? n : 1);
+  const parts = raw.split(',').map(Number);
+  if (parts.length === 1) return [ok(parts[0]), ok(parts[0]), ok(parts[0]), ok(parts[0])];
+  return [ok(parts[0]), ok(parts[1]), ok(parts[2] ?? parts[1]), ok(parts[3] ?? 1)];
+})();
 const NEAR_LOD_DEVICE_GB = deviceMemoryGB();
 const NEAR_LOD_TIER = nearLodTierFor(NEAR_LOD_DEVICE_GB, typeof location === 'undefined' ? null : new URLSearchParams(location.search).get('pool'));
 const NEAR_CANOPY_PREFETCH_M = NEAR_LOD_TIER.canopyPrefetchM;
@@ -1585,6 +1696,13 @@ const NEAR_BASE_POOL_BYTES = NEAR_LOD_TIER.basePoolBytes;
  * chunk), so this is what a frame pays, give or take one mis-predicted chunk.
  */
 const NEAR_LOD_BUILD_BUDGET_MS = 6;
+/**
+ * The first frame's build budget (ms): the parts pending inside the pre-fetch radii at the spawn
+ * are built before the walk starts (fable-5 lane 10 §18 on 39e63437: 192 of the plaza's 374 crown
+ * parts were still pending after the settle and built one per frame as the owner walked, each late
+ * one a synchronous build). Capped so a slow machine pays a bounded first frame.
+ */
+const NEAR_LOD_PREBUILD_MS = 1500;
 /**
  * The near-base bands the fixed cameras constrain (round 48; [in, out] m, key = NearBole id).
  * giant.ts NEAR_BASE_RADIUS_OVERRIDE holds the round-44 bands derived from the cameras'
@@ -1604,6 +1722,13 @@ const NEAR_LOD_BUILD_BUDGET_MS = 6;
  *   swap-18           C 19.4 (behind) · D 24.6 — the mature white-bark at (11.1, −25) built as a column
  * The 3 m of hysteresis never reach a camera: a capture re-poses with `reset`.
  */
+/**
+ * The large tier's floor under every near-base band: every bole within 40 m of the camera draws its
+ * bark relief, so none turns from the smooth far base into bark in front of the player. 48 MB holds
+ * all 23 bases (≈ 1.4 MB each) resident, and the pre-fetch (NEAR_LOD_TIERS.large.basePrefetchM)
+ * runs 10 m beyond the out-radius.
+ */
+const NEAR_BASE_WALK_BAND: [number, number] = [40, 44];
 const NEAR_BASE_HERO_BAND: Record<string, [number, number]> = {
   'stair-bank-giant': [12, 13.5],
   'lantern-tree': [12, 13.5],
@@ -1637,8 +1762,62 @@ const geometryBytes = (g: BufferGeometry) => Object.values(g.attributes).reduce(
  * reaches the shader as the same float; range-checked, so a geometry outside the range keeps its
  * floats. Run once per geometry after every build-time read of the arrays (bounds, rootsToWorld).
  */
-const compactAttributes = (g: BufferGeometry) => {
+/**
+ * The bytes `compactAttributes` would leave a geometry with, without compacting it — the batched
+ * near-canopy parts (round 54) keep every attribute Float32 so that a BatchedMesh accepts them all
+ * (its parts must share one layout, and the compaction is conditional per part), but the pool's
+ * accounting uses these bytes so its admission is the same as the per-mesh parts' was.
+ */
+const compactedBytes = (g: BufferGeometry, everyNarrowable = false) => {
+  const fits = (name: string, lo: number, hi: number) => {
+    const a = g.attributes[name] as BufferAttribute | undefined;
+    if (!a || !(a.array instanceof Float32Array)) return false;
+    if (everyNarrowable) return true;
+    const src = a.array;
+    for (let i = 0; i < src.length; i++) if (src[i] < lo || src[i] > hi) return false;
+    return true;
+  };
+  const narrow: Record<string, number> = {};
+  if (fits('normal', -1, 1)) narrow.normal = 1;
+  if (fits('color', 0, 1)) narrow.color = 1;
+  if (fits('aWind', 0, 1)) narrow.aWind = 2;
+  let bytes = g.index ? g.index.array.byteLength : 0;
+  for (const [name, a] of Object.entries(g.attributes)) bytes += (a as BufferAttribute).count * (a as BufferAttribute).itemSize * (narrow[name] ?? (a as BufferAttribute).array.BYTES_PER_ELEMENT);
+  return bytes;
+};
+/**
+ * The CPU arrays a group still holds (bytes), by the group's direct children — fable-2's
+ * `cpuArrays` audit line (rocks / hardscape, #119) for the trees: every unique geometry's attributes
+ * and index whose `array` is not null. After a mesh's first draw only what `onUpload` left; a mesh no
+ * camera has drawn yet still holds all of it, and so does the near-canopy batch by design (round 54).
+ */
+const cpuArrayBytes = (root: Group) => {
+  const seen = new Set<string>();
+  const byChild: Record<string, number> = {};
+  let bytes = 0;
+  let geometries = 0;
+  for (const child of root.children) {
+    let sub = 0;
+    child.traverse((o) => {
+      const g = (o as Mesh).geometry;
+      if (!g || seen.has(g.uuid)) return;
+      seen.add(g.uuid);
+      geometries++;
+      for (const attr of Object.values(g.attributes)) {
+        const arr = (attr as BufferAttribute).array as ArrayBufferView | null;
+        if (arr) sub += arr.byteLength;
+      }
+      const idx = g.index?.array as ArrayBufferView | null | undefined;
+      if (idx) sub += idx.byteLength;
+    });
+    if (sub > 0) byChild[child.name || child.type] = sub;
+    bytes += sub;
+  }
+  return { bytes, geometries, byChild };
+};
+const compactAttributes = (g: BufferGeometry, only?: string) => {
   const to = (name: string, Ctor: typeof Int8Array | typeof Uint8Array | typeof Uint16Array, scale: number, lo: number, hi: number) => {
+    if (only && name !== only) return;
     const a = g.attributes[name] as BufferAttribute | undefined;
     if (!a || !(a.array instanceof Float32Array)) return;
     const src = a.array;
@@ -1654,9 +1833,17 @@ const compactAttributes = (g: BufferGeometry) => {
 const dropArray = function (this: { array: ArrayLike<number> | null }) {
   this.array = null;
 };
+/**
+ * Every attribute of a static tree geometry drops its CPU array once three has uploaded it (round 51,
+ * the tab at 3.6 GB) — every attribute but a PER-INSTANCE one: those are per-frame data the buckets
+ * rewrite (lodFade.ts `aLodDrop`, attached by the build's first `rebucket`, before this sweep runs
+ * over the group), a few KB each, and a released one is a crash at the next `setX` (squad2's #191).
+ */
 const releaseAfterUpload = (g: BufferGeometry) => {
-  // Close-crown fade weights change every frame; static attributes still release their arrays.
-  for (const a of Object.values(g.attributes)) if ((a as BufferAttribute).usage !== DynamicDrawUsage) (a as BufferAttribute).onUpload(dropArray as unknown as () => void);
+  for (const a of Object.values(g.attributes)) {
+    if ((a as InstancedBufferAttribute).isInstancedBufferAttribute) continue;
+    (a as BufferAttribute).onUpload(dropArray as unknown as () => void);
+  }
   if (g.index) g.index.onUpload(dropArray as unknown as () => void);
 };
 /**
@@ -1692,14 +1879,108 @@ interface FamilyVariant<P, T extends { x: number; z: number; scale: number }, A 
   meshes: InstancedMesh[];
   placements: T[];
   matrices: Matrix4[];
-  /** LOD bucket sizes (every placement is in exactly one bucket; the audit counts these) */
+  /** LOD bucket sizes (one bucket per placement, or two inside a transition band; the audit counts these) */
   counts: number[];
+  /**
+   * lodFade.ts: the screen-door weight of a placement in a rung, keyed `level * placements.length + i`.
+   * Written only while `TREE_LOD_DITHER` is on — a tree inside a gate's band sits in two rungs and its
+   * two weights sum to 1 — and read by the drawing half. Absent with the flag off.
+   */
+  lodWeights?: Map<number, number>;
   /** placement indices per LOD bucket, as bucketed by camera distance */
   lists: number[][];
   /** placement indices actually submitted per LOD (the bucket minus the culled instances) */
   submitted: number[][];
+  /**
+   * Round 53 (W38, A over the ceiling with the squad's layers): the high bucket's shadow-only
+   * instances — behind the camera, kept for the shade they throw into the frame — cast from this
+   * twin on the MEDIUM geometry instead of the 100 K high mesh (a no-op colour pass: neither colour
+   * nor depth is written). White-barks only; the in-view instances keep the high mesh in both passes.
+   */
+  shadowProxy?: InstancedMesh;
+  submittedShadow?: number[];
 }
 type WhiteVariant = FamilyVariant<WhiteBarkParams, WhiteBarkPlacement>;
+interface UnderstoryPlacement {
+  x: number;
+  y: number;
+  z: number;
+  yaw: number;
+  scale: number;
+  variant: number;
+  /** a grove zone's stem: drawn only within GROVE_VISIBLE_M of the grove (util/groveLocality.ts) */
+  grove?: boolean;
+}
+type UnderstoryVariant = FamilyVariant<UnderstoryParams, UnderstoryPlacement>;
+const UNDERSTORY_VARIANTS = 5;
+/**
+ * Round 53 (fable-4; the owner's 2026-09-23 "the trees do not populate"): where the understory grows.
+ * Strips along the walkable paths (both verges, `min`–`max` m from the centreline) and the clearing's
+ * lawn between the plaza and the tall trees. Seeded from its own stream, so nothing else re-rolls.
+ */
+const UNDERSTORY_ZONES: { xMin: number; xMax: number; zMin: number; zMax: number; count: number; live?: boolean; spacing?: number; south?: boolean; grove?: boolean }[] = [
+  // the north path's verges, from the plaza's north end to the log arch
+  { xMin: -14, xMax: 14, zMin: -50, zMax: -12, count: 26 },
+  // the north clearing beyond the arch, up to the stand
+  { xMin: -16, xMax: 16, zMin: -66, zMax: -52, count: 12 },
+  // the plaza's lawn edges, east and west
+  { xMin: -30, xMax: -10, zMin: -12, zMax: 22, count: 10 },
+  { xMin: 12, xMax: 32, zMin: -12, zMax: 22, count: 8 },
+  // (a west-meadow zone around the far hut's knoll was built and measured: squad2's mid layer
+  // already fills that meadow at 14–58 m, so it was dropped rather than double it — the `live`
+  // zone kind stays for the expansion ground, masks and slope from the rendered surface)
+  // round 56: the far bank either side of the log's mouth, seen from the rope bridge — `south`
+  // zones keep the footing rule of the south exit (heightfield `southFooting`: off the paving, the
+  // log and the gorge) and UNDERSTORY_WALK_CLEAR_M off the south route's line. LAST: the zones
+  // share one stream, so a zone appended here re-rolls none before it.
+  { xMin: -8, xMax: 17, zMin: 46, zMax: 57, count: 4, live: true, spacing: 4.5, south: true },
+  // 2026-09-24 (expansion-north): the grove above the ledge terrace (terrain/north.ts) — leafy trees
+  // beside its trail and round its shelf and decks, the band the card crowns leave
+  // (GROVE_CARD_WALK_M); `grove` zones keep each crown GROVE_UNDERSTORY_GROUND_M off the walkable
+  // ground and the trunk house, GROVE_UNDERSTORY_DECK_M off the raised decks and huts, and each stem
+  // within GROVE_UNDERSTORY_MAX_M of the walks
+  { xMin: -14, xMax: 23, zMin: -111, zMax: -80, count: 16, live: true, spacing: 3.4, grove: true },
+];
+/**
+ * The grove understory's crowns hang from 1.5–3 m (4.5–9 m trees, 1.8–4 m crowns): 1 m off the
+ * decks put their laminae across the play camera trailing Link on the veranda, so the raised decks
+ * and huts keep the crowns GROVE_UNDERSTORY_DECK_M off (the camera's trail); the ground walks
+ * GROVE_UNDERSTORY_GROUND_M, where a crown frames the trail without closing over it.
+ */
+const GROVE_UNDERSTORY_GROUND_M = 2.2;
+const GROVE_UNDERSTORY_DECK_M = 4.5;
+const GROVE_UNDERSTORY_MAX_M = 10;
+/** the 60–215 m layer's card crowns keep at least this far (m) off the grove's walks and decks — the mid grove's MID_WALK_MIN_M, where the cards hold */
+const GROVE_CARD_WALK_M = 11;
+const UNDERSTORY_PATH_MIN_M = 3.4;
+const UNDERSTORY_PATH_MIN_ARCH_M = 6.5;
+const UNDERSTORY_ARCH_STRETCH_Z = -28;
+const UNDERSTORY_PATH_MAX_M = 11;
+const UNDERSTORY_SPACING_M = 3.2;
+/** the walk line's clearance from every understory stem (post-filter; the sampler's own minimum stays 3.4 m so the seeded draws are unchanged) */
+const UNDERSTORY_WALK_CLEAR_M = 6.5;
+/**
+ * Clearings the understory keeps out of: the west fork's inner corner — the owner's "the path splits off
+ * into the forest" has to read from the plaza side (fable-3, 2026-09-23 11:20: the fork's waymarker at
+ * (−11.2, 7.75) vanished behind a crown at the fork pose (−6.4, 1.9, 6.6) → (−9.6, 2.6, 9.4)).
+ */
+const UNDERSTORY_CLEARINGS: { x: number; z: number; r: number }[] = [
+  { x: -10.5, z: 8.5, r: 8.5 },
+  // the far hut's knoll (EXPANSION.farHut host at (−41, 35.7)) and its approach
+  { x: -41, z: 35.7, r: 11 },
+];
+/**
+ * Screen windows of the fixed views an understory crown must not cover (the same idea as VIEW_GAPS
+ * for the white-barks): F's canopy gap. Fractions of the frame; `minDistance` = the nearest a tree
+ * may stand to that camera and still be tested.
+ */
+const UNDERSTORY_VIEW_WINDOWS: { viewpoint: string; xMin: number; xMax: number; yMin: number; yMax: number; minDistance: number }[] = [
+  // D's window onto the arch was tried here (x 0.30–0.58, y 0.10–0.45): a verge tree 6 m off the
+  // path at 30 m still projects onto it, so protecting it empties the very corridor the owner asked
+  // to fill (48 → 16 trees). The owner's walk wins over the old fixed frame (SQUAD brief, lane 4);
+  // D's change is reported with the round.
+  ...VIEW_GAPS,
+];
 interface ColumnPlacement {
   /** stable id published with the seat: 'seat-<COLUMN_SEATS index>' / 'swap-<white-bark placement index>' */
   id: string;
@@ -1729,9 +2010,6 @@ interface DistantSet {
   lists: [number[], number[]];
   /** placement indices actually submitted per LOD */
   submitted: [number[], number[]];
-  ids: number[];
-  inverses: Matrix4[];
-  close: { bounds: DistantCloseCrown['bounds']; mesh: InstancedMesh; fade: InstancedBufferAttribute; item: PoolItem<GeometryBuilt>; triangles: number };
 }
 
 export async function create(ctx: WorldContext): Promise<WorldSystem> {
@@ -1749,6 +2027,40 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
   })();
   const mats = await createTreeMaterials(ctx);
   ctx.progress('trees', 0.05);
+  /**
+   * Wall-clock per build phase, for the load question the owner's first priority asks ("make all the trees
+   * load in ASAP"): `buildMs` in `__ZR__.perf()` gives this system 8.3 s of a 42.7 s build
+   * (art/environment/squad2-2026-09-23/buildtime/) but not where inside it. The boundaries are the
+   * `ctx.progress` checkpoints that already exist, so the split costs one `performance.now()` each.
+   *
+   * It is wall clock, `await yieldFrame()` included: that is what a player waits, and the yields are part
+   * of the load rather than an artefact of measuring it.
+   */
+  const buildPhases: Record<string, number> = {};
+  /** per giant, its own `createGiantTree` wall clock (ms) — the giants are two thirds of this build */
+  const giantBuildMs: Record<string, number> = {};
+  /**
+   * The giants' loop spends ~2/3 of its time OUTSIDE `createGiantTree` (TREE-PHASES.md): this accumulates
+   * the steps around it — the world-space translation of every geometry and its `aRoot`, the pooled near
+   * part registration, and the sector merge with its group split and cull install — so the load question
+   * lands on a line rather than on the loop.
+   */
+  const giantStepMs: Record<string, number> = {};
+  const step = (name: string, t0: number) => {
+    giantStepMs[name] = Math.round((giantStepMs[name] ?? 0) + (performance.now() - t0));
+  };
+  let markAt = performance.now();
+  const mark = (name: string) => {
+    const now = performance.now();
+    giantStepMs[name] = Math.round((giantStepMs[name] ?? 0) + (now - markAt));
+    markAt = now;
+  };
+  let phaseAt = performance.now();
+  const phase = (name: string) => {
+    const now = performance.now();
+    buildPhases[name] = Math.round((buildPhases[name] ?? 0) + (now - phaseAt));
+    phaseAt = now;
+  };
   /**
    * Near-bole LOD (giant.ts NEAR_BASE_CUT_Y): every giant and seated column has a near-base mesh
    * (relief bole, buttress fins, plant ring) that is shown — and its plain lower bole collapsed
@@ -1782,7 +2094,10 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
    * on the large tier from round 51, 10 / 13 as shipped). Every band keeps the nearest fixed camera
    * ≥ 2 m outside its out-radius, so the six fixed frames are the same in either tier.
    */
-  const nearBand = (id: string): [number, number] => NEAR_BASE_HERO_BAND[id] ?? (NEAR_LOD_TIER.name === 'large' ? NEAR_BASE_RADIUS_OVERRIDE_LARGE[id] : undefined) ?? NEAR_BASE_RADIUS_OVERRIDE[id] ?? NEAR_LOD_TIER.baseBand;
+  const nearBand = (id: string): [number, number] => {
+    const band = NEAR_BASE_HERO_BAND[id] ?? (NEAR_LOD_TIER.name === 'large' ? NEAR_BASE_RADIUS_OVERRIDE_LARGE[id] : undefined) ?? NEAR_BASE_RADIUS_OVERRIDE[id] ?? NEAR_LOD_TIER.baseBand;
+    return NEAR_LOD_TIER.name === 'large' ? [Math.max(band[0], NEAR_BASE_WALK_BAND[0]), Math.max(band[1], NEAR_BASE_WALK_BAND[1])] : band;
+  };
   const nearBasePool = new LodPool<GeometryBuilt>(NEAR_BASE_POOL_BYTES);
   const nearCanopyPool = new LodPool<GeometryBuilt>(NEAR_CANOPY_POOL_BYTES);
   /**
@@ -1819,6 +2134,203 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
     return [item, firstBuilt ? wrap(first) : null];
   };
   /**
+   * Round 54 (fable-4): the giants' near-canopy lobes and limbs draw as ONE mesh. Each part is a
+   * pooled geometry of its own (built lazily, evicted by the memory tier) and used to be a Mesh of
+   * its own too, so every shown lobe was a draw: up to NEAR_CANOPY_SLOTS + NEAR_CANOPY_LIMBS_MAX
+   * of them under the plaza's giants (camera A: 64 → 1), 45 at the east green's look back at the
+   * plaza (round54-lookback-draws). They all share `mats.giantTreeNearCanopy` and their geometry is
+   * already in world space (giantPartToWorld), so a BatchedMesh holds them: the pool's `install` /
+   * `uninstall` become addGeometry / deleteGeometry, `mesh.visible` becomes setVisibleAt, each
+   * part keeps its own cull sphere (three copies the geometry's padded boundingSphere into the
+   * batch) and the fold slots are vertex data (`aRoot`) that travel with the copy. With
+   * WEBGL_multi_draw the batch is one draw; without it three draws the visible parts one by one,
+   * as before. The batch keeps a CPU copy of its buffers (three needs it to copy new parts in),
+   * where the pooled parts dropped theirs after upload — the geometry is reserved in steps and
+   * grown when the pool wants more, so the heap cost is the RESIDENT set's bytes, not the shown
+   * set's: measured at camera A on the large tier, 258 giant parts / 1.91 M vertices in the batch,
+   * 171 MB of typed arrays (the pool holds 379 parts within its 42 m prefetch there); on the small
+   * tier the pool's 32 MB cap bounds it near 45 MB. The seated columns' parts (10–18 draws at the
+   * plateau's look-backs) go into a batch of their own, in the columns' group: their geometry is
+   * the seat's local space — a yaw and a scale the tree shader read through modelMatrix, which a
+   * batch instance does not have — so `bakePartToWorld` takes each built copy through the seat's
+   * matrix (positions, normals, `aRoot`) before it goes in. That also puts their wind right: the
+   * shader adds its world-space sway in object space on a plain mesh (the instanced trees turn it
+   * back through instanceMatrix), so a seated column's lobes swayed in a direction turned by the
+   * seat's yaw from the trunk's; in the batch (identity) they sway with their tree.
+   * `NEAR_CANOPY_BATCHED` false restores the per-part meshes of both.
+   */
+  const NEAR_CANOPY_BATCHED = true;
+  class NearCanopyBatch {
+    readonly mesh: BatchedMesh;
+    private maxVertices: number;
+    private maxIndices: number;
+    private maxInstances: number;
+    private vertices = 0;
+    private indices = 0;
+    private instances = 0;
+    constructor(material: Material, name: string, kind: string, maxInstances = 96, maxVertices = 300_000, maxIndices = 900_000) {
+      this.maxInstances = maxInstances;
+      this.maxVertices = maxVertices;
+      this.maxIndices = maxIndices;
+      this.mesh = new BatchedMesh(maxInstances, maxVertices, maxIndices, material);
+      this.mesh.name = name;
+      this.mesh.castShadow = false;
+      this.mesh.receiveShadow = true;
+      this.mesh.frustumCulled = false;
+      this.mesh.perObjectFrustumCulled = true;
+      this.mesh.sortObjects = false;
+      this.mesh.userData.kind = kind;
+    }
+    /** copies the part in (one geometry, one instance at the identity), hidden; the caller disposes its own copy */
+    add(geometry: BufferGeometry): { geomId: number; instId: number } {
+      const v = geometry.getAttribute('position').count;
+      const i = geometry.index ? geometry.index.count : v;
+      this.reserve(v, i);
+      let geomId: number;
+      try {
+        geomId = this.mesh.addGeometry(geometry);
+      } catch {
+        // the free space is there but fragmented by evictions: compact, then grow if it still does not fit
+        this.mesh.optimize();
+        try {
+          geomId = this.mesh.addGeometry(geometry);
+        } catch {
+          this.grow(this.maxVertices + v, this.maxIndices + i);
+          geomId = this.mesh.addGeometry(geometry);
+        }
+      }
+      const instId = this.mesh.addInstance(geomId);
+      this.mesh.setMatrixAt(instId, IDENTITY_M4);
+      this.mesh.setVisibleAt(instId, false);
+      this.vertices += v;
+      this.indices += i;
+      this.instances++;
+      return { geomId, instId };
+    }
+    remove(ids: { geomId: number; instId: number }, vertices: number, indices: number) {
+      this.mesh.deleteInstance(ids.instId);
+      this.mesh.deleteGeometry(ids.geomId);
+      this.vertices -= vertices;
+      this.indices -= indices;
+      this.instances--;
+      this.removedSince++;
+    }
+    private removedSince = 0;
+    /** parts built whose colours or wind fell outside the compaction's ranges (Float32 on the per-mesh path too) */
+    wideParts = 0;
+    /**
+     * A BatchedMesh never shrinks by itself: the reserve stays at the high-water mark and deleted
+     * parts leave holes (an add that does not fit compacts, but the reserve keeps its size). Once a
+     * frame the pool has evicted from, when the parts left use under half the reserve, compact and
+     * give the reserve back to 1.25 × the live set — the heap follows the pool's resident bytes
+     * instead of the walk's peak.
+     */
+    trim() {
+      if (this.removedSince === 0) return;
+      this.removedSince = 0;
+      if (this.vertices * 2 > this.maxVertices && this.indices * 2 > this.maxIndices) return;
+      this.mesh.optimize();
+      this.grow(Math.max(65_536, this.vertices * 1.25), Math.max(196_608, this.indices * 1.25));
+    }
+    setVisible(instId: number, visible: boolean) {
+      this.mesh.setVisibleAt(instId, visible);
+    }
+    private reserve(v: number, i: number) {
+      if (this.instances + 1 > this.maxInstances) {
+        this.maxInstances = Math.ceil(this.maxInstances * 1.5);
+        this.mesh.setInstanceCount(this.maxInstances);
+      }
+      if (this.vertices + v > this.maxVertices || this.indices + i > this.maxIndices) this.grow(Math.max(this.maxVertices * 1.25, this.vertices + v), Math.max(this.maxIndices * 1.25, this.indices + i));
+    }
+    private grow(v: number, i: number) {
+      this.maxVertices = Math.ceil(v);
+      this.maxIndices = Math.ceil(i);
+      this.mesh.setGeometrySize(this.maxVertices, this.maxIndices);
+    }
+    get stats() {
+      return { instances: this.instances, vertices: this.vertices, indices: this.indices, maxVertices: this.maxVertices, maxIndices: this.maxIndices, wideParts: this.wideParts };
+    }
+    /** the bytes of the batch's CPU copy (every attribute's reserved array and the index) */
+    get heapBytes() {
+      const g = this.mesh.geometry;
+      return Object.values(g.attributes).reduce((b, a) => b + (a as BufferAttribute).array.byteLength, 0) + (g.index ? g.index.array.byteLength : 0);
+    }
+  }
+  const IDENTITY_M4 = new Matrix4();
+  const nearCanopyBatch = NEAR_CANOPY_BATCHED ? new NearCanopyBatch(mats.giantTreeNearCanopy, 'giant-near-canopy-batch', 'giant-near-canopy') : null;
+  /** the seated columns' near parts' batch (fewer parts than the giants': ten seats' lobes, no limbs) */
+  const columnNearCanopyBatch = NEAR_CANOPY_BATCHED ? new NearCanopyBatch(mats.giantTreeNearCanopy, 'column-near-canopy-batch', 'column-near-canopy', 32, 100_000, 300_000) : null;
+  /**
+   * A seated column's near part into world space for its batch: positions and normals through the
+   * seat's matrix (yaw, uniform scale, seat), `aRoot`'s point with them (the fold root the shader
+   * compares slots against, or a cushion's anchor — what modelMatrix gave the per-mesh part), and
+   * the cull sphere the per-mesh part was tested by: the local sphere through the matrix, the
+   * wind pad in world metres (a mesh's pad was CULL_PAD_M / scale in its own units).
+   */
+  const bakePartToWorld = (g: BufferGeometry, m: Matrix4, scale: number) => {
+    const local = g.boundingSphere ? g.boundingSphere.clone() : null;
+    g.applyMatrix4(m);
+    const root = g.getAttribute('aRoot') as BufferAttribute;
+    const v = new Vector3();
+    for (let i = 0; i < root.count; i++) {
+      v.set(root.getX(i), root.getY(i), root.getZ(i)).applyMatrix4(m);
+      root.setXYZ(i, v.x, v.y, v.z);
+    }
+    root.needsUpdate = true;
+    if (local && g.boundingSphere) {
+      g.boundingSphere.center.copy(local.center).applyMatrix4(m);
+      g.boundingSphere.radius = local.radius * scale + CULL_PAD_M;
+    }
+  };
+  /** a pooled part that lives in a `NearCanopyBatch`: the built copy goes in on install (through `bake`, if the part is not authored in world space) and its own arrays are dropped; on uninstall the part leaves the batch */
+  const batchPoolItem = (id: string, batch: NearCanopyBatch, record: { shown: boolean; batchIds: { geomId: number; instId: number } | null; vertices: number }, first: BufferGeometry, steps: () => Generator<void, BufferGeometry>, finalize: (g: BufferGeometry) => void, firstBuilt = true, estimatedBytes = 0, bake: ((g: BufferGeometry) => void) | null = null): [PoolItem<GeometryBuilt>, GeometryBuilt | null] => {
+    // one layout across every part (the batch's rule): normals compact to Int8 as every part's
+    // always did (they are always in range, so the shading matches the per-mesh parts to the bit);
+    // colours and wind stay Float32, whose compaction was per part. The pool counts the bytes the
+    // full compaction would have left, so its admission matches the per-mesh parts'.
+    const wrap = (geometry: BufferGeometry): GeometryBuilt => {
+      if (bake) bake(geometry);
+      const bytes = compactedBytes(geometry);
+      if (bytes !== compactedBytes(geometry, true)) batch.wideParts++;
+      compactAttributes(geometry, 'normal');
+      return { geometry, bytes, dispose: () => geometry.dispose() };
+    };
+    let live: { ids: { geomId: number; instId: number }; vertices: number; indices: number } | null = null;
+    const item: PoolItem<GeometryBuilt> = {
+      id,
+      bytes: estimatedBytes,
+      build: function* () {
+        const g = yield* steps();
+        finalize(g);
+        return wrap(g);
+      },
+      install: (b) => {
+        const vertices = b.geometry.getAttribute('position').count;
+        const indices = b.geometry.index ? b.geometry.index.count : vertices;
+        const ids = batch.add(b.geometry);
+        live = { ids, vertices, indices };
+        record.batchIds = ids;
+        record.vertices = vertices;
+        batch.setVisible(ids.instId, record.shown);
+        // the batch holds the only copy that draws; the part's own arrays go now, not at eviction
+        for (const name of Object.keys(b.geometry.attributes)) b.geometry.deleteAttribute(name);
+        b.geometry.setIndex(null);
+        b.geometry.dispose();
+      },
+      uninstall: () => {
+        if (live) batch.remove(live.ids, live.vertices, live.indices);
+        live = null;
+        record.batchIds = null;
+        record.vertices = 0;
+      },
+    };
+    // the pool's `add(item, built)` takes a first build as already installed (a mesh holds its own
+    // first geometry): a batched part installs it here
+    const built = firstBuilt ? wrap(first) : null;
+    if (built) item.install(built);
+    return [item, built];
+  };
+  /**
    * Near-canopy LOD (giant.ts NEAR_CANOPY_IN_M): every eligible lobe of a giant
    * (and every big limb below the cap) has a near part of its own — twiglets forking off the far
    * twigs, dense sprays of cupped laminae, moss along the boughs, vines — shown only while the
@@ -1845,7 +2357,15 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
     /** authored NEAR_CANOPY_FLAT_SWAP_M distances (nearCanopy.ts NearCanopyPart.fixedSwap) */
     fixedSwap: boolean;
     persistent?: boolean;
-    mesh: Mesh;
+    /** the part's own mesh (every part when NEAR_CANOPY_BATCHED is off) */
+    mesh?: Mesh;
+    /** drawn this frame (the mesh's `visible`, or the batch instance's) */
+    shown: boolean;
+    /** the batch the part draws from (the giants' or the columns'; null for a mesh of its own) and its place there while resident */
+    batch: NearCanopyBatch | null;
+    batchIds: { geomId: number; instId: number } | null;
+    /** the resident buffers' vertex count (a batched part's; a mesh's is read from its geometry) */
+    vertices: number;
     triangles: number;
     leaves: number;
     farLeaves: number;
@@ -2032,11 +2552,27 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
   // dropped rather than left buried or floating. Take-0123's 80 sampled trees: none culled (the
   // audit's whiteBarkCulled), so the six frames keep every tree they show. The authored entries
   // below are not filtered (the knoll pair is seated on the live ground on purpose).
-  const sampledWhites = whitePlaced.placements.filter((p) => !expansionCull(p.x, p.z));
+  // Round 56 (expansion-south): on the south exit's ground `southFooting` decides as well — a trunk
+  // whose footing touches the paving, the log or the gorge is dropped (the stem that stood against
+  // the log's mouth), and one the far bank's mound lifted stands on the live bank (it was culled as
+  // buried, which left the bank bald). `drawnWhites` is the set as drawn before round 56: the
+  // streams after this one (the understory, the columns and their swap draws, the mid grove, the
+  // root toes) stand off IT, so a dropped south stem re-rolls none of them.
+  const drawnWhites = whitePlaced.placements.filter((p) => !westExpansionCull(p.x, p.z));
+  const southFootings = new Map(drawnWhites.map((p) => [p, southFooting(p.x, p.z, SOUTH_TRUNK_REACH_M, whites[p.variant].params.trunkRadius * p.scale + SOUTH_LIP_MARGIN_M)]));
+  const sampledWhites = drawnWhites.filter((p) => southFootings.get(p) !== 'cull');
   const whiteBarkCulled = whitePlaced.placements.filter((p) => !sampledWhites.includes(p)).map((p) => [Math.round(p.x * 100) / 100, Math.round(p.z * 100) / 100]);
-  const swappedWhites = sampledWhites.filter((p) => whites[p.variant].params.age === 'mature' && inFarWall(p.x, p.y, p.z));
+  const drawnSwaps = drawnWhites.filter((p) => whites[p.variant].params.age === 'mature' && inFarWall(p.x, p.y, p.z));
+  const swappedWhites = drawnSwaps.filter((p) => southFootings.get(p) !== 'cull');
+  const liveTerrain = getTerrain();
+  for (const p of sampledWhites) {
+    if (southFootings.get(p) !== 'live') continue;
+    p.y = liveTerrain.height(p.x, p.z);
+    p.view = 'live';
+  }
   const whitePlacements = sampledWhites.filter((p) => !swappedWhites.includes(p));
-  whitePlacements.push(...authoredWhiteBarks(whites.map((w) => w.params), terrain));
+  const authoredWhites = authoredWhiteBarks(whites.map((w) => w.params), terrain);
+  whitePlacements.push(...authoredWhites);
   // the two white-barks off the far hut's knoll (round 50, trees-32), seated on the LIVE ground
   // (both views agree there: −0.14 / 0.34 m — the knoll's rise ends 8 m from the hut), from their
   // own stream. Mature variants chosen for the crown radius: (−34, 45) stands 5.7 m west of camera
@@ -2044,7 +2580,7 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
   // smallest mature crown, 3.3 m); (−50, 39) is 23 m outside. Both are in every fixed camera's
   // FAR LOD (≥ 49.5 m, lodDist 44 at quality high), which does not cast — the (−34, 45) tree's
   // shadow would otherwise land 12 m inside C's frame.
-  const liveTerrain = getTerrain();
+  const knollWhites: WhiteBarkPlacement[] = [];
   {
     const knollRng = rng.fork('whitebark/knoll');
     const mature = whites.map((w, i) => (w.params.age === 'mature' ? i : -1)).filter((i) => i >= 0);
@@ -2052,9 +2588,12 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
     const byRadius = [...mature].sort((a, b) => whites[a].lods[2].radius - whites[b].lods[2].radius);
     for (const spot of KNOLL_WHITE_BARKS) {
       const variant = byRadius.length ? byRadius[spot.crown === 'small' ? 0 : byRadius.length - 1] : 0;
-      whitePlacements.push({ variant, x: spot.x, y: liveTerrain.height(spot.x, spot.z), z: spot.z, yaw: knollRng() * TAU, scale: knollRng.range(0.92, 1.08), view: 'live' });
+      knollWhites.push({ variant, x: spot.x, y: liveTerrain.height(spot.x, spot.z), z: spot.z, yaw: knollRng() * TAU, scale: knollRng.range(0.92, 1.08), view: 'live' });
     }
   }
+  whitePlacements.push(...knollWhites);
+  /** the white-barks the later streams stand off, in the order they were built before round 56 (see `drawnWhites`) */
+  const whiteClearance = [...drawnWhites.filter((p) => !drawnSwaps.includes(p)), ...authoredWhites, ...knollWhites];
   const seatFamily = <P, T extends { x: number; y: number; z: number; yaw: number; scale: number }>(variants: FamilyVariant<P, T>[], p: T, variant: number, tilt: Quaternion | null = null) => {
     const w = variants[variant];
     w.placements.push(p);
@@ -2066,11 +2605,62 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
   };
   // fable-4 (round 50, W08 at C): the hero stem's instance tilt — whitebark.ts HERO_WHITE_BARK_TILTS
   for (const p of whitePlacements) seatFamily(whites, p, p.variant, whiteBarkTilt(p.x, p.z));
-  // Props use the existing bole seats to stay clear of trunks; tree geometry and LODs stay unchanged.
+  // the play camera refuses to stand inside a white-bark's bole (camera/collision.ts)
   ctx.shared.slimTrunks = whitePlacements.map((p) => {
     const w = whites[p.variant];
     return { x: p.x, z: p.z, r: w.params.trunkRadius * p.scale * 1.25, y0: p.y - 0.5, y1: p.y + w.lods[0].height * p.scale * 0.6 };
   });
+  /**
+   * A tree's colour-pass bound: the crown (leaf vertices, aRoot.w > 0.5) and the wood split at its
+   * mid-height as three spheres. The convex hull of the three is outside a frustum plane iff every
+   * sphere is; for a tall thin tree that hull is far tighter than the geometry's one sphere, which
+   * for a 20 m white-bark 9 m behind the camera still swallowed the camera. Computed while the
+   * CPU arrays exist (they are released after the first upload).
+   */
+  const geometryHull = (geometry: BufferGeometry): Sphere[] => {
+    const pos = geometry.attributes.position;
+    const root = geometry.attributes.aRoot;
+    if (!pos || !pos.array || !root || !root.array || root.itemSize < 4) return [geometry.boundingSphere!.clone()];
+    const box: Box3[] = [new Box3(), new Box3(), new Box3()];
+    const v = new Vector3();
+    let minY = Infinity;
+    let maxY = -Infinity;
+    for (let i = 0; i < pos.count; i++) {
+      if (root.getW(i) > 0.5) continue;
+      const y = pos.getY(i);
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+    }
+    const midY = (minY + maxY) / 2;
+    for (let i = 0; i < pos.count; i++) {
+      v.fromBufferAttribute(pos, i);
+      const leaf = root.getW(i) > 0.5;
+      box[leaf ? 0 : v.y < midY ? 1 : 2].expandByPoint(v);
+    }
+    const out: Sphere[] = [];
+    for (let b = 0; b < 3; b++) {
+      if (box[b].isEmpty()) continue;
+      const sp = new Sphere();
+      box[b].getCenter(sp.center);
+      sp.radius = 0;
+      for (let i = 0; i < pos.count; i++) {
+        const leaf = root.getW(i) > 0.5;
+        if ((leaf ? 0 : pos.getY(i) < midY ? 1 : 2) !== b) continue;
+        v.fromBufferAttribute(pos, i);
+        const d = v.distanceTo(sp.center);
+        if (d > sp.radius) sp.radius = d;
+      }
+      out.push(sp);
+    }
+    return out.length ? out : [geometry.boundingSphere!.clone()];
+  };
+  /** `FarFoliageBatch.onBeforeShadow` scratch: the sun's frustum and one lobe's sphere, reused every frame */
+  const shadowFrustum = new Frustum();
+  const shadowViewProj = new Matrix4();
+  const lobeSphere = new Sphere();
+  const lobeMatrix4 = new Matrix4();
+  /** the shadow proxies' colour-pass material: writes neither colour nor depth — only the shadow pass sees them */
+  const shadowOnlyMaterial = new MeshBasicMaterial({ colorWrite: false, depthWrite: false });
   const familyMeshes = <P, T extends { x: number; z: number; scale: number }>(variants: FamilyVariant<P, T>[], label: string, material: Material, depth: Material, parent: Group) => {
     for (const w of variants) {
       const n = Math.max(1, w.placements.length);
@@ -2078,15 +2668,36 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
         const mesh = new InstancedMesh(w.lods[l].geometry, material, n);
         mesh.name = `${label}-${(w.params as { seed: string }).seed}-${DETAILS[l]}`;
         mesh.customDepthMaterial = depth;
-        // near and mid LODs cast shadows (dappled light on the paths); the far LOD only receives
-        mesh.castShadow = l < 2 && ctx.quality.shadows;
+        // near and mid LODs cast shadows (dappled light on the paths); the far LOD only receives.
+        // Round 51 (W38; fable-2's triangle map: the shadow pass is a third of every frame and the
+        // trees' casters 1.3 M of it whichever way the camera looks): the WHITE-BARKS' mid meshes no
+        // longer cast — their dapple fell on ground 20–44 m out, under the haze. The columns' mid
+        // meshes keep casting: measured without them E −0.0032 / A, D −0.0019 (their shade is on
+        // the paths the fixed views frame).
+        mesh.castShadow = l < (label === 'whitebark' ? 1 : 2) && ctx.quality.shadows;
         mesh.receiveShadow = true;
         mesh.count = 0;
         mesh.visible = false;
         mesh.userData.kind = label;
         mesh.userData.lodLevel = l;
+        mesh.userData.hull = geometryHull(w.lods[l].geometry);
         w.meshes.push(mesh);
         parent.add(mesh);
+        if (label === 'whitebark' && l === 0 && ctx.quality.shadows) {
+          const proxy = new InstancedMesh(w.lods[1].geometry, shadowOnlyMaterial, n);
+          proxy.name = `${label}-${(w.params as { seed: string }).seed}-high-shadow`;
+          proxy.customDepthMaterial = depth;
+          proxy.castShadow = true;
+          proxy.receiveShadow = false;
+          proxy.count = 0;
+          proxy.visible = false;
+          proxy.userData.kind = label;
+          proxy.userData.lodLevel = 0;
+          proxy.userData.shadowProxy = true;
+          parent.add(proxy);
+          w.shadowProxy = proxy;
+          w.submittedShadow = [];
+        }
       }
     }
   };
@@ -2102,10 +2713,128 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
     ctx.layout.pathToHouse.map((p) => [p[0], p[2]] as [number, number]),
     ctx.layout.northPath.map((p) => [p[0], p[2]] as [number, number]),
   ];
-  const rootPlacements = whitePlacements.filter((p) => walkXZ.some((poly) => poly.length > 1 && spineDistance(poly, p.x, p.z) <= WHITE_ROOT_REACH_M));
-  whiteGroup.add(createWhiteBarkRoots(whites.map((w) => w.params), rootPlacements, terrain, palette, mats.whiteTree, mats.whiteTreeDepth, ctx.quality.shadows));
+  // round 56: each tree's toes keep the stream they had in the drawn order (`whiteClearance`) when a
+  // south stem before them is dropped, and on the south exit they bed on the rendered ground
+  const rootPlacements: RootPlacement[] = [];
+  whiteClearance
+    .filter((p) => walkXZ.some((poly) => poly.length > 1 && spineDistance(poly, p.x, p.z) <= WHITE_ROOT_REACH_M))
+    .forEach((p, toeStream) => whitePlacements.includes(p) && rootPlacements.push({ ...p, toeStream }));
+  const rootGround = { height: (x: number, z: number) => (z > 10 && inExpansionSouth(x, z) ? liveTerrain : terrain).height(x, z) };
+  /** kept in a variable so the audit can tally it: it was `unaccounted` for until 2026-09-30 */
+  const whiteBarkRoots = createWhiteBarkRoots(whites.map((w) => w.params), rootPlacements, rootGround, palette, mats.whiteTree, mats.whiteTreeDepth, ctx.quality.shadows);
+  whiteGroup.add(whiteBarkRoots);
   group.add(whiteGroup);
   ctx.progress('trees', 0.5);
+  phase('white-barks');
+  await yieldFrame();
+
+  // ------------------------------------------------------------------ understory (round 53)
+  const understoryRng = rng.fork('understory');
+  const understory: UnderstoryVariant[] = [];
+  for (let i = 0; i < UNDERSTORY_VARIANTS; i++) {
+    const params = understoryParams(understoryRng, i, UNDERSTORY_VARIANTS);
+    const lods = DETAILS.map((d) => createUnderstoryTree(params, palette, d));
+    understory.push({ params, lods, meshes: [], placements: [], matrices: [], counts: [0, 0, 0], lists: [[], [], []], submitted: [[], [], []] });
+  }
+  const understoryPlacements: UnderstoryPlacement[] = [];
+  const understoryPathDistance = (x: number, z: number) => Math.min(...walkXZ.map((poly) => (poly.length > 1 ? spineDistance(poly, x, z) : Infinity)));
+  {
+    const placeRng = understoryRng.fork('place');
+    const viewpoints = ctx.layout.viewpoints.map((v) => ({ x: v.position[0], z: v.position[2] }));
+    const seats = [...COLUMN_SEATS.map((c) => ({ x: c.x, z: c.z, r: 4 })), ...[...ctx.layout.giantTrees, ...EXTRA_GIANTS].map((g) => ({ x: g.position[0], z: g.position[2], r: g.trunkRadius * 2.5 + 2.5 }))];
+    const tooClose = (x: number, z: number, spacing: number) => {
+      if (viewpoints.some((v) => Math.hypot(v.x - x, v.z - z) < 7)) return true;
+      if (seats.some((c) => Math.hypot(c.x - x, c.z - z) < c.r)) return true;
+      if (whiteClearance.some((w) => Math.hypot(w.x - x, w.z - z) < 2.6)) return true;
+      if (understoryPlacements.some((u) => Math.hypot(u.x - x, u.z - z) < spacing)) return true;
+      return false;
+    };
+    const pathDistance = (x: number, z: number) => Math.min(...walkXZ.map((poly) => (poly.length > 1 ? spineDistance(poly, x, z) : Infinity)));
+    const windows = UNDERSTORY_VIEW_WINDOWS.map((w) => {
+      const view = ctx.layout.viewpoints.find((v) => v.id === w.viewpoint);
+      if (!view) return null;
+      const position = new Vector3(view.position[0], view.position[1], view.position[2]);
+      const project = viewProjector(position, new Vector3(view.target[0], view.target[1], view.target[2]), view.fov, 16 / 9);
+      const th = Math.tan((view.fov * Math.PI) / 360);
+      return { w, position, project, th };
+    }).filter((w): w is NonNullable<typeof w> => w !== null);
+    const coversWindow = (x: number, y: number, z: number, variant: number, scale: number) => {
+      const u = understory[variant];
+      const cr = u.params.crownRadius * scale;
+      const centre = new Vector3(x, y + u.lods[0].height * scale - cr * 0.85, z);
+      for (const { w, position, project, th } of windows) {
+        if (position.distanceTo(centre) < w.minDistance) continue;
+        const pr = project(centre);
+        if (!pr) continue;
+        const [sx, sy, depth] = pr;
+        const rx = (0.5 * (cr / depth)) / (th * (16 / 9));
+        const ry = (0.5 * (cr / depth)) / th;
+        if (sx + rx > w.xMin && sx - rx < w.xMax && sy + ry > w.yMin && sy - ry < w.yMax) return true;
+      }
+      return false;
+    };
+    for (const zone of UNDERSTORY_ZONES) {
+      let placed = 0;
+      // masks and slope from the view the zone lives on; the seat height always from the rendered
+      // surface (`liveTerrain` = the lattice the terrain mesh draws), so every stem meets the ground
+      const t = zone.live ? liveTerrain : terrain;
+      const spacing = zone.spacing ?? UNDERSTORY_SPACING_M;
+      for (let attempt = 0; attempt < zone.count * 60 && placed < zone.count; attempt++) {
+        const x = zone.xMin + placeRng() * (zone.xMax - zone.xMin);
+        const z = zone.zMin + placeRng() * (zone.zMax - zone.zMin);
+        const d = pathDistance(x, z);
+        // nearer the arch the verge widens: D's window onto the arch's opening stays readable while
+        // the corridor keeps its trees on both sides (the reference's D frames the arch with trees)
+        const pathMin = z < UNDERSTORY_ARCH_STRETCH_Z ? UNDERSTORY_PATH_MIN_ARCH_M : UNDERSTORY_PATH_MIN_M;
+        if (d < pathMin || (!zone.live && d > UNDERSTORY_PATH_MAX_M)) continue;
+        if (!zone.live && expansionCull(x, z)) continue;
+        if (zone.south && (southWalkDistance(x, z) < UNDERSTORY_WALK_CLEAR_M || southFooting(x, z, SOUTH_TRUNK_REACH_M, 0.5) === 'cull')) continue;
+        const m = t.mask(x, z);
+        if (m.path > 0.05 || m.stairs > 0 || m.structure > 0 || m.cliff > 0.3) continue;
+        // the arch's footprint and the columns' roots have their own masks; keep off steep ground too
+        if (t.slope(x, z) > 0.55) continue;
+        if (UNDERSTORY_CLEARINGS.some((c) => Math.hypot(c.x - x, c.z - z) < c.r)) continue;
+        if (tooClose(x, z, spacing)) continue;
+        const variant = placeRng.int(0, UNDERSTORY_VARIANTS);
+        const scale = placeRng.range(0.85, 1.15);
+        if (zone.grove) {
+          const cr = understory[variant].params.crownRadius * scale;
+          if (groveWalkDistance(x, z) > GROVE_UNDERSTORY_MAX_M) continue;
+          if (groveGroundDistance(x, z) < cr + GROVE_UNDERSTORY_GROUND_M || groveDeckDistance(x, z) < cr + GROVE_UNDERSTORY_DECK_M) continue;
+          if (northGroveClear(x, z, understory[variant].params.trunkRadius * scale + 0.2)) continue;
+          if (northGroveHuts().some((h) => Math.hypot(x - h.x, z - h.z) < h.r + cr + (h.id === 'house' ? GROVE_UNDERSTORY_GROUND_M : GROVE_UNDERSTORY_DECK_M))) continue;
+        }
+        const y = liveTerrain.height(x, z);
+        if (coversWindow(x, y, z, variant, scale)) continue;
+        understoryPlacements.push({ x, y, z, yaw: placeRng() * TAU, scale, variant, grove: zone.grove });
+        placed++;
+      }
+    }
+  }
+  /**
+   * fable-5 (lane 10, 17:56) + fable-cursor (18:40): at `h-west-front` and the owner's 06:50 pose a
+   * walker at eye height stood inside the verge crowns seated 3.4 m from the centreline (the arch
+   * stretch's 6.5 m read right). The walk line keeps UNDERSTORY_WALK_CLEAR_M everywhere — applied as a
+   * post-filter over the sampled list, so no other stem moves (a rule inside the loop shifts every
+   * later draw).
+   */
+  const understoryKept = understoryPlacements.filter((p) => understoryPathDistance(p.x, p.z) >= UNDERSTORY_WALK_CLEAR_M);
+  understoryPlacements.length = 0;
+  understoryPlacements.push(...understoryKept);
+  for (const p of understoryPlacements) seatFamily(understory, p, p.variant);
+  const understoryGroup = new Group();
+  understoryGroup.name = 'understory';
+  familyMeshes(understory, 'understory', mats.giantTree, mats.giantTreeDepth, understoryGroup);
+  group.add(understoryGroup);
+  ctx.shared.slimTrunks = [
+    ...(ctx.shared.slimTrunks ?? []),
+    ...understoryPlacements.map((p) => {
+      const u = understory[p.variant];
+      return { x: p.x, z: p.z, r: u.params.trunkRadius * p.scale * 1.4, y0: p.y - 0.5, y1: p.y + u.lods[0].height * p.scale * 0.5 };
+    }),
+  ];
+  ctx.progress('trees', 0.52);
+  phase('understory');
   await yieldFrame();
 
   // ------------------------------------------------------------------ column trees
@@ -2134,14 +2863,18 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
     if (t.slope(x, z) > 0.6) return 'slope';
     for (const h of ctx.layout.houses) if (Math.hypot(x - h.position[0], z - h.position[2]) < h.trunkRadius + COLUMN_CLEARANCE.house) return `house:${h.id}`;
     for (const g of giantDefsAll) if (Math.hypot(x - g.position[0], z - g.position[2]) < g.trunkRadius + COLUMN_CLEARANCE.giant) return `giant:${g.id}`;
-    for (const p of whitePlacements) if (Math.hypot(x - p.x, z - p.z) < COLUMN_CLEARANCE.whiteBark) return 'white-bark';
+    for (const p of whiteClearance) if (Math.hypot(x - p.x, z - p.z) < COLUMN_CLEARANCE.whiteBark) return 'white-bark';
     return null;
   };
-  // the swapped white-barks first (their seats are already clear), then the authored seats
-  for (const p of swappedWhites) {
+  // the swapped white-barks first (their seats are already clear), then the authored seats; every
+  // drawn swap takes its three draws, one the south exit dropped too (unbuilt), so none after it re-rolls
+  for (const p of drawnSwaps) {
     const variant = seatRng.int(0, COLUMN_VARIANTS);
     const id = `swap-${whitePlaced.placements.indexOf(p)}`;
-    seatFamily(columns, { id, x: p.x, y: p.y, z: p.z, yaw: seatRng() * TAU, scale: seatRng.range(0.95, 1.05), source: 'swap', view: 'legacy', casts: true }, variant);
+    const yaw = seatRng() * TAU;
+    const scale = seatRng.range(0.95, 1.05);
+    if (!swappedWhites.includes(p)) continue;
+    seatFamily(columns, { id, x: p.x, y: p.y, z: p.z, yaw, scale, source: 'swap', view: p.view === 'live' ? 'live' : 'legacy', casts: true }, variant);
   }
   for (let i = 0; i < COLUMN_SEATS.length; i++) {
     const seat = COLUMN_SEATS[i];
@@ -2215,37 +2948,35 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
     mesh.receiveShadow = true;
     mesh.visible = false;
     mesh.userData.kind = 'column-near-base';
+    mesh.userData.staticCasts = mesh.castShadow;
     columnGroup.add(mesh);
     const [item, first] = poolItem(`column-near-base/${p.id}`, mesh, asset.nearBaseBuild!, () => {});
     nearBasePool.add(item, first);
     nearBoles.push({ id: p.id, origin: new Vector3(p.x, p.y, p.z), cutY: asset.nearBaseAudit.cutY, mesh, triangles: asset.nearBaseAudit.triangles, active: false, dist: Infinity, band: nearBand(p.id), rootsOnly: asset.nearBaseAudit.rootsOnly, item });
   }
-  // the seated columns' near-canopy parts (see NearCanopy): one hidden non-casting mesh per lobe,
-  // posed like its instance; the far program folds the instance's tagged laminae by its world root
+  // the seated columns' near-canopy parts (see NearCanopy): posed like their instance — in the
+  // columns' batch, baked through the seat's matrix (NEAR_CANOPY_BATCHED), else one hidden
+  // non-casting mesh per lobe; the far program folds the instance's tagged laminae by its world root
+  if (columnNearCanopyBatch) columnGroup.add(columnNearCanopyBatch.mesh);
   for (const c of seatedColumns) {
     const p = c.placements[0];
     const cos = Math.cos(p.yaw), sin = Math.sin(p.yaw);
+    // the seat's matrix as the per-part mesh composed it (position, rotation.y, uniform scale)
+    const seatMatrix = new Matrix4().compose(new Vector3(p.x, p.y, p.z), new Quaternion().setFromAxisAngle(new Vector3(0, 1, 0), p.yaw), new Vector3(p.scale, p.scale, p.scale));
     c.lods[0].nearCanopy.forEach((part, i) => {
       // the cull sphere three tests carries the wind pad (in the instance's scale); every rebuild gets the same
-      const finalize = (g: BufferGeometry) => {
-        g.computeBoundingBox();
-        g.computeBoundingSphere();
-        g.boundingSphere!.radius += CULL_PAD_M / p.scale;
-      };
+      const finalize = columnNearCanopyBatch
+        ? (g: BufferGeometry) => {
+            g.computeBoundingBox();
+            g.computeBoundingSphere();
+          }
+        : (g: BufferGeometry) => {
+            g.computeBoundingBox();
+            g.computeBoundingSphere();
+            g.boundingSphere!.radius += CULL_PAD_M / p.scale;
+          };
       finalize(part.geometry);
-      const mesh = new Mesh(part.geometry, mats.giantTreeNearCanopy);
-      const [item, first] = poolItem(`column-near-canopy/${p.id}/${part.kind}-${i}`, mesh, part.build, finalize);
-      nearCanopyPool.add(item, first);
-      mesh.name = `column-near-canopy-${p.id}-${part.kind}-${i}`;
-      mesh.position.set(p.x, p.y, p.z);
-      mesh.rotation.y = p.yaw;
-      mesh.scale.setScalar(p.scale);
-      mesh.castShadow = false;
-      mesh.receiveShadow = true;
-      mesh.visible = false;
-      mesh.userData.kind = 'column-near-canopy';
-      columnGroup.add(mesh);
-      nearCanopies.push({
+      const nc: NearCanopy = {
         id: `${p.id}/${part.kind}-${i}`,
         tree: p.id,
         kind: part.kind,
@@ -2256,15 +2987,37 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
         inM: part.inM,
         outM: part.outM,
         fixedSwap: part.fixedSwap === true,
-        mesh,
+        shown: false,
+        batch: columnNearCanopyBatch,
+        batchIds: null,
+        vertices: 0,
         triangles: part.triangles,
         leaves: part.leaves,
         farLeaves: part.farLeaves,
         farCards: part.farCards,
         active: false,
         dist: Infinity,
-        item,
-      });
+        item: null as unknown as PoolItem<GeometryBuilt>,
+      };
+      let first: GeometryBuilt | null;
+      if (columnNearCanopyBatch) {
+        [nc.item, first] = batchPoolItem(`column-near-canopy/${p.id}/${part.kind}-${i}`, columnNearCanopyBatch, nc, part.geometry, part.build, finalize, true, 0, (g) => bakePartToWorld(g, seatMatrix, p.scale));
+      } else {
+        const mesh = new Mesh(part.geometry, mats.giantTreeNearCanopy);
+        [nc.item, first] = poolItem(`column-near-canopy/${p.id}/${part.kind}-${i}`, mesh, part.build, finalize);
+        mesh.name = `column-near-canopy-${p.id}-${part.kind}-${i}`;
+        mesh.position.set(p.x, p.y, p.z);
+        mesh.rotation.y = p.yaw;
+        mesh.scale.setScalar(p.scale);
+        mesh.castShadow = false;
+        mesh.receiveShadow = true;
+        mesh.visible = false;
+        mesh.userData.kind = 'column-near-canopy';
+        columnGroup.add(mesh);
+        nc.mesh = mesh;
+      }
+      nearCanopyPool.add(nc.item, first);
+      nearCanopies.push(nc);
     });
   }
   group.add(columnGroup);
@@ -2283,13 +3036,17 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
   }
   ctx.shared.trunkSeats = trunkSeats;
   ctx.progress('trees', 0.55);
+  phase('columns');
   await yieldFrame();
 
   // ------------------------------------------------------------------ giants
   const giantGroup = new Group();
   giantGroup.name = 'giants';
-  const giants: { def: GiantTreeDef; asset: GiantAsset; origin: Vector3; angle: number }[] = [];
+  if (nearCanopyBatch) giantGroup.add(nearCanopyBatch.mesh);
+  const giants: { def: GiantTreeDef; asset: GiantAsset; origin: Vector3; angle: number; heroDistance: number }[] = [];
   const contacts: [number, number, number][] = [];
+  /** the contacts of the giants seated on the live ground (`southSeat` below), for the base-gap audit */
+  const liveContacts = new Set<[number, number, number]>();
   /**
    * The detached boughs (DETACHED_BOUGHS, giant.ts GiantOptions.detachedBoughs): their meshes,
    * gated as one by `detachedVisible` (util/expansionLocality.ts expansionVisible against
@@ -2333,6 +3090,7 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
       mesh.name = `giant-near-base-${g.def.id}`;
       mesh.customDepthMaterial = mats.giantTreeDepth;
       mesh.castShadow = ctx.quality.shadows;
+      mesh.userData.staticCasts = mesh.castShadow;
       mesh.receiveShadow = true;
       mesh.visible = false;
       mesh.userData.kind = 'giant-near-base';
@@ -2361,17 +3119,8 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
         geometry.boundingSphere!.radius += CULL_PAD_M;
       };
       finalize(part.geometry);
-      const mesh = new Mesh(part.geometry, mats.giantTreeNearCanopy);
-      mesh.name = `giant-near-canopy-${g.def.id}-${part.kind}-${i}`;
-      mesh.castShadow = false;
-      mesh.receiveShadow = true;
-      mesh.visible = false;
-      mesh.userData.kind = 'giant-near-canopy';
-      mesh.userData.giants = [g.def.id];
-      giantGroup.add(mesh);
-      const [item, first] = poolItem(`giant-near-canopy/${g.def.id}/${part.kind}-${i}`, mesh, part.build, finalize, !part.deferred, part.estimatedBytes);
-      nearCanopyPool.add(item, first);
-      nearCanopies.push({
+      // the record first: a batched part's pool item writes its batch ids and vertex count into it
+      const nc: NearCanopy = {
         id: `${g.def.id}/${part.kind}-${i}`,
         tree: g.def.id,
         kind: part.kind,
@@ -2383,15 +3132,35 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
         outM: part.outM,
         fixedSwap: part.fixedSwap === true,
         ...(part.persistent ? { persistent: true } : {}),
-        mesh,
+        shown: false,
+        batch: nearCanopyBatch,
+        batchIds: null,
+        vertices: 0,
         get triangles() { return part.triangles; },
         get leaves() { return part.leaves; },
         farLeaves: part.farLeaves,
         farCards: part.farCards,
         active: false,
         dist: Infinity,
-        item,
-      });
+        item: null as unknown as PoolItem<GeometryBuilt>,
+      };
+      let first: GeometryBuilt | null;
+      if (nearCanopyBatch) {
+        [nc.item, first] = batchPoolItem(`giant-near-canopy/${g.def.id}/${part.kind}-${i}`, nearCanopyBatch, nc, part.geometry, part.build, finalize, !part.deferred, part.estimatedBytes);
+      } else {
+        const mesh = new Mesh(part.geometry, mats.giantTreeNearCanopy);
+        mesh.name = `giant-near-canopy-${g.def.id}-${part.kind}-${i}`;
+        mesh.castShadow = false;
+        mesh.receiveShadow = true;
+        mesh.visible = false;
+        mesh.userData.kind = 'giant-near-canopy';
+        mesh.userData.giants = [g.def.id];
+        giantGroup.add(mesh);
+        nc.mesh = mesh;
+        [nc.item, first] = poolItem(`giant-near-canopy/${g.def.id}/${part.kind}-${i}`, mesh, part.build, finalize, !part.deferred, part.estimatedBytes);
+      }
+      nearCanopyPool.add(nc.item, first);
+      nearCanopies.push(nc);
     });
   };
   /**
@@ -2415,9 +3184,15 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
     }
     nearBasePool.work(0);
   };
+  const loopT0 = performance.now();
   for (const def of giantDefs) {
     const [px, , pz] = def.position;
-    const gy = terrain.height(px, pz);
+    // round 56: a giant standing in the south exit's boxes (`plaza-south`, `south-centre`) seats its
+    // roots and fins on the LIVE ground and paving — the path runs through its roots at its own
+    // smoothed grade, up to 0.3 m off the legacy plain; both views agree at the boles' feet
+    const southSeat = pz > 10 && inExpansionSouth(px, pz);
+    const giantTerrain = southSeat ? liveTerrain : terrain;
+    const gy = giantTerrain.height(px, pz);
     const origin = new Vector3(px, gy, pz);
     let limbSpec: NonNullable<Parameters<typeof createGiantTree>[2]['limbSpec']> | undefined;
     if (def.limb && def.id === 'lantern-tree') {
@@ -2469,8 +3244,23 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
     const canopyBoughs: CanopyBough[] = CANOPY_BOUGHS.filter((b) => b.giant === def.id).map(toLocalBough);
     const detachedSpecs = DETACHED_BOUGHS.filter((b) => b.giant === def.id);
     const detachedBoughs: CanopyBough[] = detachedSpecs.map(toLocalBough);
+    // the nearest hero camera that holds this giant in its forward cone (the frames' horizontal half
+    // angle is 37–38°, so 0.5 · |f| · d is 60°: in shot or just past its edge). It gates the near-bole
+    // bark below, and the audit reports it beside each giant's wood so a rung proposal can see which
+    // of the heavy trees a fixed frame actually looks at.
+    const heroDistance = Math.min(
+      ...ctx.layout.viewpoints.map((v) => {
+        const fx = v.target[0] - v.position[0];
+        const fz = v.target[2] - v.position[2];
+        const dx = px - v.position[0];
+        const dz = pz - v.position[2];
+        const d = Math.hypot(dx, dz);
+        return fx * dx + fz * dz >= 0.5 * Math.hypot(fx, fz) * d ? d : Infinity;
+      }),
+    );
+    const giantT0 = performance.now();
     const asset = createGiantTree(def, rng, {
-      groundAt: (lx, lz) => terrain.height(px + lx, pz + lz) - gy,
+      groundAt: (lx, lz) => giantTerrain.height(px + lx, pz + lz) - gy,
       limbSpec,
       palette,
       // ×1.1 restores the laminae the porous sun corridors remove (W11 counts ≥ 200 k leaves)
@@ -2504,31 +3294,29 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
       canopyBoughs,
       detachedBoughs: detachedBoughs.length ? detachedBoughs : undefined,
       sunDir,
-      pathAt: (lx, lz) => terrain.mask(px + lx, pz + lz).path,
+      pathAt: (lx, lz) => giantTerrain.mask(px + lx, pz + lz).path,
+      rootPressAt: southSeat ? (lx, lz) => southRootPress(px + lx, pz + lz) : undefined,
       basePalette,
       // the near-bole bark (bole.ts) goes on the giants within NEAR_BOLE_M of a hero camera and
       // within 60° of its axis (the frames' horizontal half-angle is 37–38°: in shot or just past
       // its edge). The south giants stand 13–23 m from cameras A and F but 65–120° off their axes,
       // and are only ever seen as hazed columns 28–35 m into shot C, where the relief measured
       // −0.013 SSIM. GIANT_PROFILES.relief overrides this (the lantern tree).
-      heroDistance: Math.min(
-        ...ctx.layout.viewpoints.map((v) => {
-          const fx = v.target[0] - v.position[0];
-          const fz = v.target[2] - v.position[2];
-          const dx = px - v.position[0];
-          const dz = pz - v.position[2];
-          const d = Math.hypot(dx, dz);
-          return fx * dx + fz * dz >= 0.5 * Math.hypot(fx, fz) * d ? d : Infinity;
-        }),
-      ),
+      heroDistance,
       nearCanopy: { defer: true },
     });
+    // lodFade/buildtime: this giant's own build, for the load split — the giants are 63 % of this system's
+    // 8.3 s (art/environment/squad2-2026-09-23/buildtime/TREE-PHASES.md) and twelve authored trees is few
+    // enough that one of them can be the reason
+    giantBuildMs[def.id] = Math.round(performance.now() - giantT0);
     // to world space; aRoot.xyz carries the tree origin so the merged shader keeps per-tree context
     // (the near base and the near-canopy parts get the same below, where their pooled rebuilds do)
+    const translateT0 = performance.now();
     for (const g of [asset.geometry, asset.authoredLeaves, asset.cards, asset.authoredCards]) {
       g.translate(px, gy, pz);
       rootsToWorld(g.getAttribute('aRoot') as BufferAttribute, px, gy, pz);
     }
+    step('to-world', translateT0);
     // the detached boughs (DETACHED_BOUGHS): three meshes of their own in `detachedGroup`, shown
     // by the gate below — wood (never casts: its footprint is what comes nearest camera C),
     // laminae and cards (cast: the curtains' shade on the bank is the point of them)
@@ -2612,38 +3400,472 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
     }
     // the giant's bole joins the seats under its layout id (giants are only translated: yaw 0, scale 1)
     trunkSeats.push(trunkSeatFromRings(def.id, origin, 0, 1, asset.trunkPath.map((p) => p.clone().add(origin)), asset.trunkRadii, asset.bareHeight));
-    giants.push({ def, asset, origin, angle: Math.atan2(pz, px) });
+    giants.push({ def, asset, origin, angle: Math.atan2(pz, px), heroDistance });
+    const poolT0 = performance.now();
     attachGiantNearParts(giants[giants.length - 1]);
     pruneNearPools();
-    for (const c of asset.contacts) contacts.push([px + c.x, gy + c.y, pz + c.z]);
+    step('near-pool-register', poolT0);
+    for (const c of asset.contacts) {
+      const at: [number, number, number] = [px + c.x, gy + c.y, pz + c.z];
+      contacts.push(at);
+      if (southSeat) liveContacts.add(at);
+    }
     ctx.progress('trees', 0.55 + (0.3 * giants.length) / giantDefs.length);
+    const yieldT0 = performance.now();
     await yieldFrame();
+    step('yield-frame', yieldT0);
+    giantStepMs['yield-count'] = (giantStepMs['yield-count'] ?? 0) + 1;
   }
+  step('giants-loop-total', loopT0);
+  /**
+   * Per-group culling for a merged world-space mesh, in both passes: `groupBoxes[i]` bounds group i
+   * (materialIndex i). `cull()` marks each box against the camera frustum (GROUP_PAD_M for wind)
+   * and each group's shadow sweep against the same frustum; a marked-out group is drawn with count
+   * 0 — `onBeforeRender` / `onAfterRender` per group for the colour pass, `onBeforeShadow` /
+   * `onAfterShadow` (three r163+, called per group the same way) for the sun's depth pass.
+   */
+  const GROUP_PAD_M = 1.5;
+  /** height bands a giant's leaves split into for the colour-pass cull (draws: 1 wood + bands per giant) */
+  const GIANT_LEAF_BANDS = 2;
+  const installGroupCulling = (mesh: Mesh, bounds: { boxes: Box3[]; spheres: Sphere[] }) => {
+    mesh.userData.groupBoxes = bounds.boxes.map((b) => b.clone().expandByScalar(GROUP_PAD_M));
+    mesh.userData.groupSpheres = bounds.spheres.map((sp) => {
+      const out = sp.clone();
+      out.radius += GROUP_PAD_M;
+      return out;
+    });
+    mesh.userData.groupInView = bounds.boxes.map(() => true);
+    /** per group: its shadow sweep meets the frustum, so the sun's depth pass must draw it */
+    mesh.userData.groupCasts = bounds.boxes.map(() => true);
+    // three types the hook's last argument as an Object3D Group; at runtime it is the geometry
+    // group record ({ start, count, materialIndex }) of the draw being issued
+    type GeometryGroup = { start: number; count: number; materialIndex: number };
+    const saved: (number | undefined)[] = [];
+    mesh.onBeforeRender = (_r, _s, _c, _g, _m, group) => {
+      const g = group as unknown as GeometryGroup | null;
+      if (!g) return;
+      const inView = mesh.userData.groupInView as boolean[];
+      if (inView[g.materialIndex] === false) {
+        saved[g.materialIndex] = g.count;
+        g.count = 0;
+      }
+    };
+    mesh.onAfterRender = (_r, _s, _c, _g, _m, group) => {
+      const g = group as unknown as GeometryGroup | null;
+      if (!g) return;
+      const count = saved[g.materialIndex];
+      if (count === undefined) return;
+      g.count = count;
+      saved[g.materialIndex] = undefined;
+    };
+    // The same trick for the sun's depth pass. A group whose shadow capsule (its padded sphere
+    // swept to the shadow floor along the sun) lies wholly outside one frustum plane cannot darken
+    // a visible pixel, so its triangles are pure cost: at the main flight's foot the south sector's
+    // four giants were 86 K of depth for a frame their shade never enters.
+    const savedShadow: (number | undefined)[] = [];
+    mesh.onBeforeShadow = (_r, _o, _c, _sc, _g, _m, group) => {
+      const g = group as unknown as GeometryGroup | null;
+      if (!g) return;
+      const casts = mesh.userData.groupCasts as boolean[];
+      if (casts[g.materialIndex] === false) {
+        savedShadow[g.materialIndex] = g.count;
+        g.count = 0;
+      }
+    };
+    mesh.onAfterShadow = (_r, _o, _c, _sc, _g, _m, group) => {
+      const g = group as unknown as GeometryGroup | null;
+      if (!g) return;
+      const count = savedShadow[g.materialIndex];
+      if (count === undefined) return;
+      g.count = count;
+      savedShadow[g.materialIndex] = undefined;
+    };
+  };
+  /**
+   * Split every merged group (one per giant, `mergeParts(…, true)`) at its first leaf triangle
+   * (`aRoot.w > 0.5`; a giant's geometry is wood then leaves), re-register the groups and return
+   * one bounding box per final group — the colour-pass test above works on these. Arrays are still
+   * on the CPU here (released after the first upload).
+   */
+  const splitGroupsAtLeaves = (geometry: BufferGeometry, leafChunks = 1): { boxes: Box3[]; spheres: Sphere[] } => {
+    const index = geometry.index;
+    const pos = geometry.attributes.position;
+    const root = geometry.attributes.aRoot;
+    const boxes: Box3[] = [];
+    const spheres: Sphere[] = [];
+    const ranges: [number, number][] = [];
+    const v = new Vector3();
+    const vertexIndex = (t: number) => (index ? index.getX(t) : t);
+    const boundsOf = (a: number, b: number) => {
+      const box = new Box3();
+      for (let t = a; t < b; t++) box.expandByPoint(v.fromBufferAttribute(pos, vertexIndex(t)));
+      const sphere = new Sphere();
+      box.getCenter(sphere.center);
+      for (let t = a; t < b; t++) sphere.radius = Math.max(sphere.radius, v.fromBufferAttribute(pos, vertexIndex(t)).distanceTo(sphere.center));
+      ranges.push([a, b]);
+      boxes.push(box);
+      spheres.push(sphere);
+    };
+    for (const g of geometry.groups) {
+      const end = g.start + g.count;
+      let split = end;
+      if (root && root.itemSize >= 4) {
+        for (let t = g.start; t < end; t += 3) {
+          if (root.getW(vertexIndex(t)) > 0.5) {
+            split = t;
+            break;
+          }
+        }
+      }
+      if (split > g.start) boundsOf(g.start, split);
+      if (split >= end) continue;
+      if (leafChunks <= 1 || !index) {
+        boundsOf(split, end);
+        continue;
+      }
+      // the leaves in height bands of equal triangle count: sort the range's triangles by centroid y
+      // and rewrite that slice of the index in band order (a giant's crown mass sits high; the upper
+      // bands of a giant behind the camera clear the frustum's top plane while its lower limbs do not)
+      const triCount = (end - split) / 3;
+      const order = new Array<number>(triCount);
+      const heights = new Float32Array(triCount);
+      for (let k = 0; k < triCount; k++) {
+        const t = split + k * 3;
+        heights[k] = (pos.getY(index.getX(t)) + pos.getY(index.getX(t + 1)) + pos.getY(index.getX(t + 2))) / 3;
+        order[k] = k;
+      }
+      order.sort((a, b) => heights[a] - heights[b]);
+      const sorted = new Uint32Array((end - split));
+      for (let k = 0; k < triCount; k++) {
+        const t = split + order[k] * 3;
+        sorted[k * 3] = index.getX(t);
+        sorted[k * 3 + 1] = index.getX(t + 1);
+        sorted[k * 3 + 2] = index.getX(t + 2);
+      }
+      for (let k = 0; k < sorted.length; k++) index.setX(split + k, sorted[k]);
+      index.needsUpdate = true;
+      for (let c = 0; c < leafChunks; c++) {
+        const a = split + Math.floor((triCount * c) / leafChunks) * 3;
+        const b = split + Math.floor((triCount * (c + 1)) / leafChunks) * 3;
+        if (b > a) boundsOf(a, b);
+      }
+    }
+    geometry.clearGroups();
+    ranges.forEach(([a, b], i) => geometry.addGroup(a, b - a, i));
+    return { boxes, spheres };
+  };
+  /**
+   * The triangles `tris` (indices into the triangle list) of an indexed geometry as a geometry of
+   * their own: every attribute copied for the vertices those triangles use (same item size, type
+   * and normalisation), a new index, bounds computed. Arrays must still be on the CPU.
+   */
+  const subsetGeometry = (g: BufferGeometry, tris: number[], name: string): BufferGeometry => {
+    const index = g.index!;
+    const remap = new Map<number, number>();
+    const order: number[] = [];
+    const out = new Uint32Array(tris.length * 3);
+    for (let k = 0; k < tris.length; k++) {
+      for (let c = 0; c < 3; c++) {
+        const v = index.getX(tris[k] * 3 + c);
+        let m = remap.get(v);
+        if (m === undefined) {
+          m = order.length;
+          remap.set(v, m);
+          order.push(v);
+        }
+        out[k * 3 + c] = m;
+      }
+    }
+    const sub = new BufferGeometry();
+    sub.name = name;
+    for (const [attrName, attr] of Object.entries(g.attributes)) {
+      const a = attr as BufferAttribute;
+      const src = a.array as unknown as ArrayLike<number> & { constructor: new (n: number) => Float32Array };
+      const array = new src.constructor(order.length * a.itemSize);
+      for (let i = 0; i < order.length; i++) for (let c = 0; c < a.itemSize; c++) array[i * a.itemSize + c] = src[order[i] * a.itemSize + c];
+      sub.setAttribute(attrName, new BufferAttribute(array, a.itemSize, a.normalized));
+    }
+    sub.setIndex(new BufferAttribute(order.length > 65535 ? out : Uint16Array.from(out), 1));
+    sub.computeBoundingBox();
+    sub.computeBoundingSphere();
+    return sub;
+  };
+  /**
+   * The lobe group a far lamina's `aRoot.w` names (materials.ts, the near-canopy fold: `3 + group`,
+   * or a flat lobe's `1000 + group + 0.5 × share`), −1 for every other vertex.
+   */
+  const foldGroupOf = (w: number) => (w >= 999 ? Math.floor(w - 1000 + 0.01) : w > 2.75 ? Math.round(w - 3) : -1);
+  /**
+   * Round 54 (fable-4; squad2's `FOLD-NOT-WORTH-IT`): a giant's TAGGED far laminae — the far foliage
+   * of every lobe that has a near-canopy part, which the colour pass folds to a point while the part
+   * is shown but still submits (119 K triangles at camera A, 138 K at the plateau look-back) — leave
+   * its geometry here for one sub-geometry per lobe group, which `FarFoliageBatch` draws and can
+   * take out of the frame instead. The giant keeps its wood and its untagged leaves (a triangle only
+   * moves when all three of its vertices name the same group).
+   */
+  const extractTaggedFoliage = (asset: GiantAsset, id: string): { kept: BufferGeometry; groups: { group: number; geometry: BufferGeometry }[] } => {
+    const g = asset.geometry;
+    const index = g.index!;
+    const root = g.getAttribute('aRoot') as BufferAttribute;
+    const keptTris: number[] = [];
+    const byGroup = new Map<number, number[]>();
+    const triCount = index.count / 3;
+    for (let t = 0; t < triCount; t++) {
+      const a = foldGroupOf(root.getW(index.getX(t * 3)));
+      if (a >= 0 && a === foldGroupOf(root.getW(index.getX(t * 3 + 1))) && a === foldGroupOf(root.getW(index.getX(t * 3 + 2)))) {
+        let list = byGroup.get(a);
+        if (!list) byGroup.set(a, (list = []));
+        list.push(t);
+      } else keptTris.push(t);
+    }
+    if (byGroup.size === 0) return { kept: g, groups: [] };
+    const kept = subsetGeometry(g, keptTris, g.name);
+    const groups = [...byGroup.entries()].sort((a, b) => a[0] - b[0]).map(([group, tris]) => ({ group, geometry: subsetGeometry(g, tris, `giant-far-foliage-${id}-${group}`) }));
+    g.dispose();
+    return { kept, groups };
+  };
+  /**
+   * Which of a geometry's narrowable attributes are in the range the end-of-build compaction
+   * quantises to (colours → Uint8 over [0, 1], wind → Uint16 over [0, 1]; normals always fit). The
+   * compaction decides per geometry, so a sector whose relief bole carries a negative wind term (the
+   * bark AO) keeps Float32 colours and wind for every vertex it holds — its far laminae included.
+   */
+  const narrowLayout = (geometries: BufferGeometry[]): { color: boolean; aWind: boolean } => {
+    const fits = (name: string, lo: number, hi: number) =>
+      geometries.every((g) => {
+        const a = g.attributes[name] as BufferAttribute | undefined;
+        if (!a) return true;
+        if (!(a.array instanceof Float32Array)) return a.normalized;
+        for (let i = 0; i < a.array.length; i++) if (a.array[i] < lo || a.array[i] > hi) return false;
+        return true;
+      });
+    return { color: fits('color', 0, 1), aWind: fits('aWind', 0, 1) };
+  };
+  /** the compaction with a decided layout: normals always, colours and wind only where the decision says so */
+  const compactToLayout = (g: BufferGeometry, layout: { color: boolean; aWind: boolean }) => {
+    compactAttributes(g, 'normal');
+    if (layout.color) compactAttributes(g, 'color');
+    if (layout.aWind) compactAttributes(g, 'aWind');
+  };
+  /**
+   * A sector's tagged far laminae (extractTaggedFoliage) as one static BatchedMesh, one instance per
+   * (giant, lobe group) at the identity — the geometry is world space, like the sectors'. Sized
+   * exactly and never changed after build, so its vertex arrays go with the first upload like every
+   * other tree buffer's (only the index stays, a few MB three reads the element size of per frame):
+   * no heap to speak of, unlike the pooled near-canopy batches. One batch per sector, in the
+   * sector's own attribute layout (`narrowLayout` over the members' full geometries, what the
+   * sector's compaction decided before the laminae left it), so the laminae are quantised exactly
+   * as they were inside the sector mesh; and its `castShadow` is armed by the sector's rule.
+   *
+   * The fold: `nearCanopyUpdate` names the shown lobes that hold a slot (`shownLobes`) — the only
+   * parts the shader folds — and `fold()` marks their instances. They are hidden in the COLOUR pass
+   * only (`onBeforeRender`) and shown again for the depth pass (`onBeforeShadow`, which three calls
+   * before it builds the shadow map's draw list), because the depth programs get an empty slot set
+   * today and the shadows are the far foliage's at every distance. Per-instance frustum culling by
+   * each group's own padded sphere (finer than the sectors' two height bands). One draw with
+   * WEBGL_multi_draw; the caller builds the batches only where the extension is present.
+   *
+   * The depth pass, per lobe (fable-4, after #171): a sector's sphere always reaches the frame from
+   * the plaza, so `shadowReaches` at the mesh level never spares a sector's laminae; per lobe it does —
+   * `reaches(sphere)` (the sector rule, the sweep along the sun from the lobe's padded sphere to
+   * SHADOW_FLOOR_Y against the camera frustum) decides each instance's place in the depth list, and a
+   * lobe whose shadow cannot land in the frame is not drawn into the map. Measured before building:
+   * 484 K → 362 K at camera A, 287 K at D, 304 K at B — a caster whose sweep misses the frustum can
+   * shadow no visible pixel, so the frame is the same.
+   */
+  class FarFoliageBatch {
+    readonly mesh: BatchedMesh;
+    readonly instances: number;
+    readonly vertices: number;
+    readonly indices: number;
+    readonly layout: { color: boolean; aWind: boolean };
+    private readonly instanceOf = new Map<string, number>();
+    private readonly hidden = new Set<number>();
+    /** each instance's padded sphere, with CULL_PAD_M on top for the shadow sweep (the sector meshes' margin) */
+    private readonly shadowSpheres: Sphere[] = [];
+    private readonly triangles: number[] = [];
+    /** the depth list of the last shadow pass: instances drawn and their triangles */
+    casting = 0;
+    castingTriangles = 0;
+    constructor(name: string, material: Material, depth: Material, parts: { key: string; geometry: BufferGeometry }[], layout: { color: boolean; aWind: boolean }, casts: boolean, reaches: (s: Sphere) => boolean) {
+      let v = 0;
+      let i = 0;
+      for (const p of parts) {
+        v += p.geometry.getAttribute('position').count;
+        i += p.geometry.index!.count;
+      }
+      this.instances = parts.length;
+      this.vertices = v;
+      this.indices = i;
+      this.layout = layout;
+      for (const p of parts) compactToLayout(p.geometry, layout);
+      const mesh = new BatchedMesh(Math.max(1, parts.length), Math.max(3, v), Math.max(3, i), material);
+      this.mesh = mesh;
+      mesh.name = name;
+      mesh.customDepthMaterial = depth;
+      mesh.castShadow = casts;
+      mesh.receiveShadow = true;
+      mesh.frustumCulled = false;
+      mesh.perObjectFrustumCulled = true;
+      mesh.sortObjects = false;
+      mesh.userData.kind = 'giant-far-foliage';
+      for (const p of parts) {
+        p.geometry.boundingSphere!.radius += GROUP_PAD_M;
+        p.geometry.boundingBox!.expandByScalar(GROUP_PAD_M);
+        const geomId = mesh.addGeometry(p.geometry);
+        const instId = mesh.addInstance(geomId);
+        mesh.setMatrixAt(instId, IDENTITY_M4);
+        this.instanceOf.set(p.key, instId);
+        const shadowSphere = p.geometry.boundingSphere!.clone();
+        shadowSphere.radius += CULL_PAD_M;
+        this.shadowSpheres[instId] = shadowSphere;
+        this.triangles[instId] = p.geometry.index!.count / 3;
+        p.geometry.dispose();
+      }
+      mesh.computeBoundingBox();
+      mesh.computeBoundingSphere();
+      // the vertex arrays go with the first upload (releaseAfterUpload's rule); the index stays —
+      // three reads its element size when it lays out the multi-draw starts every frame
+      for (const a of Object.values(mesh.geometry.attributes)) (a as BufferAttribute).onUpload(dropArray as unknown as () => void);
+      const proto = BatchedMesh.prototype;
+      const count = parts.length;
+      // each pass sets every instance from its own rule before three builds that pass's list
+      mesh.onBeforeRender = (renderer, scene, camera, geometry, mat, group) => {
+        for (let id = 0; id < count; id++) mesh.setVisibleAt(id, !this.hidden.has(id));
+        proto.onBeforeRender.call(mesh, renderer, scene, camera, geometry, mat, group);
+      };
+      mesh.onBeforeShadow = (renderer, _object, _camera, shadowCamera, geometry, depthMaterial) => {
+        let casting = 0;
+        let castingTriangles = 0;
+        /**
+         * `reaches` arms a lobe whose shade sweeps into the frame, but `perObjectFrustumCulled` then drops
+         * any armed lobe the SHADOW camera cannot see — against the lobe's own sphere, not the swept one —
+         * so counting the armed set overstates the depth list by whatever falls outside the sun's view.
+         * Both numbers this records are meant to be what the pass DRAWS, so the same test runs here.
+         */
+        shadowFrustum.setFromProjectionMatrix(shadowViewProj.multiplyMatrices(shadowCamera.projectionMatrix, shadowCamera.matrixWorldInverse));
+        for (let id = 0; id < count; id++) {
+          const cast = reaches(this.shadowSpheres[id]);
+          mesh.setVisibleAt(id, cast);
+          if (cast) {
+            mesh.getBoundingSphereAt(mesh.getGeometryIdAt(id), lobeSphere);
+            mesh.getMatrixAt(id, lobeMatrix4);
+            lobeSphere.applyMatrix4(lobeMatrix4).applyMatrix4(mesh.matrixWorld);
+            if (!shadowFrustum.intersectsSphere(lobeSphere)) continue;
+            casting++;
+            castingTriangles += this.triangles[id];
+          }
+        }
+        this.casting = casting;
+        this.castingTriangles = castingTriangles;
+        /**
+         * What this batch just submitted to the depth pass, for the submission tally to read. It cannot be
+         * derived from outside: the set is built here from `shadowSpheres` against the SHADOW camera, which
+         * is a different rule and a different frustum from the colour pass's fold. A tally that assumed the
+         * depth pass reuses the colour set — true of three, false of this hook — read the far foliage's
+         * shade far too cheaply (`auditvsrenderer/`).
+         */
+        mesh.userData.shadowTriangles = castingTriangles;
+        mesh.userData.shadowDraws = casting > 0 ? 1 : 0;
+        // three's own onBeforeShadow builds the depth list through `this.onBeforeRender` — the colour hook
+        // above, which would apply the fold — so the depth list is built here directly
+        (proto.onBeforeRender as unknown as (...args: unknown[]) => void).call(mesh, renderer, null, shadowCamera, geometry, depthMaterial);
+      };
+    }
+    /** the lobes whose far laminae leave the colour pass this frame (`${giant}/${group}` keys; others are ignored) */
+    fold(keys: Iterable<string>) {
+      this.hidden.clear();
+      for (const k of keys) {
+        const id = this.instanceOf.get(k);
+        if (id !== undefined) this.hidden.add(id);
+      }
+    }
+    get folded() {
+      return this.hidden.size;
+    }
+    /** the triangles the colour pass is spared this frame (the folded instances' index counts) */
+    get foldedTriangles() {
+      let n = 0;
+      for (const id of this.hidden) n += (this.mesh.getGeometryRangeAt(this.mesh.getGeometryIdAt(id))?.indexCount ?? 0) / 3;
+      return n;
+    }
+    /** the batch's CPU arrays still held (0 once the first upload released them) */
+    get heapBytes() {
+      const g = this.mesh.geometry;
+      const bytes = (a: BufferAttribute | null) => (a && a.array ? a.array.byteLength : 0);
+      return Object.values(g.attributes).reduce((b, a) => b + bytes(a as BufferAttribute), 0) + bytes(g.index);
+    }
+  }
+  const tailT0 = performance.now();
+  markAt = tailT0;
+  const groupMeshes: Mesh[] = [];
   // three angular sectors around the plaza → three meshes, each frustum-culled as a unit
   const byAngle = [...giants].sort((a, b) => a.angle - b.angle);
   const sectorGeometries: BufferGeometry[] = [];
   const sectorMeshes: Mesh[] = [];
   const perSector = Math.ceil(byAngle.length / GIANT_SECTORS);
+  // the far-foliage batch needs WEBGL_multi_draw to be one draw (three draws the visible instances
+  // one by one without it — squad2's +100 calls); where it is missing the fold stays the shader's
+  const FAR_FOLIAGE_BATCHED = ctx.renderer.extensions.has('WEBGL_multi_draw');
+  const farFoliage: FarFoliageBatch[] = [];
+  /** the sector geometries whose attribute layout was decided here (the end-of-build compaction leaves them as they are) */
+  const layoutFixed = new Set<BufferGeometry>();
   for (let s = 0; s < GIANT_SECTORS; s++) {
     const members = byAngle.slice(s * perSector, (s + 1) * perSector);
     if (!members.length) continue;
     const label = members.map((m) => m.def.id).join('+');
+    const farParts: { key: string; geometry: BufferGeometry }[] = [];
+    // the sector's layout, decided on the members' full geometries: what the compaction would have
+    // done to the merged mesh with the laminae still in it, applied to both halves below
+    const layout = FAR_FOLIAGE_BATCHED ? narrowLayout(members.map((m) => m.asset.geometry)) : null;
+    if (layout) {
+      for (const m of members) {
+        const { kept, groups } = extractTaggedFoliage(m.asset, m.def.id);
+        m.asset.geometry = kept;
+        for (const part of groups) farParts.push({ key: `${m.def.id}/${part.group}`, geometry: part.geometry });
+      }
+    }
+    // Round 52 (W38): one geometry group per giant, so the colour pass can skip a member whose own
+    // box is outside the frustum while the sector's other members draw (a sector spans ~50 × 30 ×
+    // 55 m and always meets the frustum; at A the south sector's four giants all stand behind the
+    // camera and drew 488 K triangles for no pixel). The shadow pass still draws every group —
+    // three renders the shadow maps before the scene and never calls onBeforeRender from them.
+    const mergeT0 = performance.now();
     const geometry = mergeParts(
       `giants-sector-${s}`,
       members.map((m) => m.asset.geometry),
+      true,
     );
     const cardGeometry = mergeParts(
       `giants-canopy-${s}`,
       members.map((m) => m.asset.cards),
     );
     sectorGeometries.push(geometry, cardGeometry);
-    const mesh = new Mesh(geometry, mats.giantTree);
+    // a giant's box holds the camera whenever it stands within its limbs' reach (A: the south
+    // sector's boles are 12–19 m behind the stairs and reach 13 m), so each giant splits into its
+    // wood and its crown: the crown, 12–26 m up, is what a behind-the-camera giant mostly is, and
+    // its box clears the frustum's top plane
+    const woodBounds = splitGroupsAtLeaves(geometry, GIANT_LEAF_BANDS);
+    const mesh = new Mesh(geometry, woodBounds.boxes.map(() => mats.giantTree));
     mesh.name = `giants-sector-${s}-${label}`;
     mesh.customDepthMaterial = mats.giantTreeDepth;
     mesh.castShadow = ctx.quality.shadows;
     mesh.receiveShadow = true;
     mesh.userData.kind = 'giant';
     mesh.userData.giants = members.map((m) => m.def.id);
+    installGroupCulling(mesh, woodBounds);
+    step('sector-merge', mergeT0);
+    groupMeshes.push(mesh);
+    if (layout) {
+      compactToLayout(geometry, layout);
+      layoutFixed.add(geometry);
+      if (farParts.length) {
+        const batch = new FarFoliageBatch(`giant-far-foliage-${s}-${label}`, mats.giantTree, mats.giantTreeDepth, farParts, layout, ctx.quality.shadows, (sphere) => shadowReachesGround(sphere));
+        batch.mesh.userData.giants = members.map((m) => m.def.id);
+        farFoliage.push(batch);
+        giantGroup.add(batch.mesh);
+      }
+    }
     const canopy = new Mesh(cardGeometry, mats.giantCanopy);
     canopy.name = `giants-canopy-${s}-${label}`;
     canopy.customDepthMaterial = mats.giantCanopyDepth;
@@ -2669,6 +3891,7 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
   // met every hero frustum, so each view would have drawn every giant's curtains (F and C the
   // plateau-oak's 0.29 M triangles of shot-D curtains, A / B / D the bank's). Per giant, a view
   // draws the curtains whose own sphere meets it: +1 call per giant that has any.
+  mark('tail-sectors');
   const authoredParts = giants.filter((g) => g.asset.authoredLeaves.getAttribute('position').count > 0);
   for (const g of giants) if (!authoredParts.includes(g)) g.asset.authoredLeaves.dispose();
   for (const g of authoredParts) {
@@ -2763,9 +3986,14 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
   group.add(detachedGroup);
 
   // ------------------------------------------------------------------ distant trees
+  mark('tail-authored-and-rootkit');
   const distantGroup = new Group();
   distantGroup.name = 'distant';
-  const distantVariants = createDistantVariants(rng, palette);
+  // the 60–220 m layer, then the mid-canopy layer appended (distant.ts createMidVariants: the
+  // 14–58 m band the owner's 06:50 screenshot circles as empty grey haze). Their streams are forked
+  // by name off `rng`, so every distant / white-bark / giant / column draw is where it was.
+  const distantVariants = [...createDistantVariants(rng, palette), ...createMidVariants(rng, palette)];
+  mark('tail-variants');
   const distantTarget = Math.round(680 * Math.max(0.7, Math.min(1.2, ctx.quality.density)));
   // Round 45 (structures-28's ray pick at w21-spine-f): the first depth row ran through the log
   // arch's north mouth — its instance at (0.73, −59.8) was a hex-prism trunk 5 m off the spine,
@@ -2791,25 +4019,168 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
     footprints: [{ x: arch.position[0], z: arch.position[2], ax: Math.cos(archYaw), az: -Math.sin(archYaw), halfLength: arch.length / 2 + 2, halfWidth: arch.radius + 1 }],
   };
   const distantPlacements = placeDistantTrees(rng, terrain, distantVariants, distantTarget, 60, 215, DEPTH_BANDS, distantClearance);
+  mark('tail-distant-place');
   const distantCleared = distantClearanceTally();
+
+  // ------------------------------------------------------------------ mid-canopy grove (14–58 m)
+  /**
+   * The owner, 2026-09-23 06:50 (marked screenshot on the north path): "the trees do not populate" —
+   * his red circle 2 is the empty grey middle distance over the path, where his own recording
+   * (`reference/frames-dense/review46/r_020`–`r_028`) stacks small and medium trees with round leafy
+   * crowns at every depth. Everything we had in that band was a BOLE: the giants, the pale
+   * white-barks, the authored column trunks (bare to 10 m by design) and, at 42 m, the far-trunk
+   * poles whose crowns start 18 m up. The distant layer's inner radius is 60 m — that is where
+   * crowns began.
+   *
+   * The grove fills 14–58 m with understory and sub-canopy trees (distant.ts MID_HEIGHTS 7.6–15.4 m,
+   * crowns centred at half their height, so a walker meets leaves and not a pole). It is a new
+   * stream that READS the other systems' positions and adds nothing to theirs, so no existing
+   * instance moves:
+   *   • the ground rule is the white-barks' own (placement.ts treeGroundBlocked): the paved surfaces
+   *     and their verge, the four path polylines, every authored landmark, slope ≤ 0.55;
+   *   • `occupied` keeps a mid bole out of every giant, house trunk, white-bark, column seat and
+   *     distant bole that already stands there;
+   *   • the plaza's sun corridors stay open — crowns only, a thin bole shadow is welcome dapple;
+   *   • the expansion's ground is culled like every other legacy-built stream (heightfield.ts
+   *     expansionCull), so nothing floats over the west bank, the discs or the far hut's knoll.
+   */
+  const midTarget = Math.round(400 * Math.max(0.7, Math.min(1.2, ctx.quality.density)));
+  const midOccupied: { x: number; z: number; r: number }[] = [
+    ...giantDefsAll.map((g) => ({ x: g.position[0], z: g.position[2], r: g.trunkRadius + 4.5 })),
+    ...ctx.layout.houses.map((h) => ({ x: h.position[0], z: h.position[2], r: h.trunkRadius + 4 })),
+    // (the white-barks and columns as drawn before round 56: see `drawnWhites`)
+    ...whiteClearance.map((p) => ({ x: p.x, z: p.z, r: whites[p.variant].params.trunkRadius * p.scale + 2.4 })),
+    ...[...columnPlacements, ...drawnSwaps.filter((p) => !swappedWhites.includes(p))].map((p) => ({ x: p.x, z: p.z, r: 3.2 })),
+    // only the distant boles that can reach the grove's annulus (the layer starts at 60 m; the
+    // depth rows and the far-trunk poles stand inside it)
+    ...distantPlacements.filter((p) => Math.hypot(p.x, p.z) < 74).map((p) => ({ x: p.x, z: p.z, r: 3.5 })),
+  ];
+  /**
+   * Where the grove is thickest. The village core stays open (nothing new inside 13 m, full weight
+   * from 19 m out); the north — the owner's pose looks down the north path from the plaza's north
+   * end — carries about twice the weight of the rest of the ring, and the ring itself is thick
+   * everywhere, because the brief is "every direction you can walk shows layered trees".
+   */
+  const midWeight = (x: number, z: number) => smoothstep(13, 19, Math.hypot(x, z)) * (0.58 + 0.42 * smoothstep(-6, -26, z));
+  /**
+   * fable-5 (lane 10, 2026-09-23 12:52): mid crowns 3–7 m from the walk line read as flat card piles
+   * at `u-open-up` and `h-west-front`. The band 3.4–11 m off the walk polylines is the understory's
+   * (real laminae, `UNDERSTORY_PATH_MIN_M`…`UNDERSTORY_PATH_MAX_M`); the card grove starts where the
+   * cards hold — MID_WALK_MIN_M from the path centrelines (a post-filter, so no other tree moves).
+   */
+  const MID_WALK_MIN_M = 11;
+  const midWalkXZ: [number, number][][] = [
+    ctx.layout.pathSpine.map((p) => [p[0], p[2]] as [number, number]),
+    ctx.layout.pathToHouse.map((p) => [p[0], p[2]] as [number, number]),
+    ctx.layout.northPath.map((p) => [p[0], p[2]] as [number, number]),
+  ];
+  const nearWalk = (x: number, z: number) => midWalkXZ.some((poly) => poly.length > 1 && spineDistance(poly, x, z) < MID_WALK_MIN_M);
+  const midSampled = placeMidTrees(rng, terrain, distantVariants, {
+    target: midTarget,
+    inner: 13,
+    outer: 58,
+    blocked: (x, z, treeRadius) => treeGroundBlocked(ctx, x, z, treeRadius, EXTRA_GIANTS),
+    occupied: midOccupied,
+    corridors: plazaCorridors.map((c) => ({ point: c.point, dir: c.dir, radius: c.radius })),
+    weight: midWeight,
+    spacing: 3.2,
+  });
+  // applied AFTER sampling, like expansionCull: a rule inside the sampler's `blocked` shifts every
+  // later draw and re-rolls the whole grove (measured: 6 trees fewer, 60 % of u-open-up's pixels moved)
+  // round 56: the south route keeps the cards MID_SOUTH_WALK_MIN_M off its line, and the south exit's
+  // ground seats or drops a mid bole the way it does a white-bark (`southFooting`)
+  mark('tail-mid-place');
+  const midSpec0 = distantVariants.length - MID_SPECS.length;
+  /** the mid boles standing on the south exit's live ground, for the base-gap audit */
+  const midLive = new Set<(typeof midSampled)[number]>();
+  const midPlacements = midSampled.filter((p) => {
+    if (nearWalk(p.x, p.z) || southWalkDistance(p.x, p.z) < MID_SOUTH_WALK_MIN_M) return false;
+    const trunkR = MID_TRUNK_R * (MID_SPECS[p.variant - midSpec0]?.height ?? 12) * p.scale;
+    const south = southFooting(p.x, p.z, SOUTH_TRUNK_REACH_M, trunkR + SOUTH_LIP_MARGIN_M);
+    if (south === null) return !expansionCull(p.x, p.z);
+    if (south === 'cull' || westExpansionCull(p.x, p.z)) return false;
+    if (south === 'live') {
+      p.y = liveTerrain.height(p.x, p.z);
+      midLive.add(p);
+    }
+    return true;
+  });
+  distantPlacements.push(...midPlacements);
+  // 2026-09-24 (expansion-north): the grove (terrain/north.ts) keeps every bole off its flight,
+  // trail, shelf and walkways and out from under its huts (`northGroveClear` with the bole's own
+  // foot radius), and every crown whose base hangs below a hut's top clear of it; a tree left in the
+  // grove's box stands on the live ground the grove shaped. Only the 60–215 m layer reaches the box
+  // (76.9 m+ from the plaza); a filter after every sampler, so nothing else re-rolls. The card
+  // crowns read as flat piles from under them (the mid grove's finding, MID_WALK_MIN_M), so no card
+  // crown comes within GROVE_CARD_WALK_M of the grove's walks and decks, in the box or beside it,
+  // and a bole gives way to a grove understory stem it would crowd (the understory is seated first).
+  const groveUnderstory = understoryPlacements
+    .filter((p) => p.z < -76 && inExpansionNorth(p.x, p.z))
+    .map((p) => ({ x: p.x, z: p.z, cr: understory[p.variant].params.crownRadius * p.scale }));
+  const northGrove = { culled: [] as [number, number][], reseated: 0, understory: groveUnderstory.length, cardWalkM: GROVE_CARD_WALK_M, understoryGroundM: GROVE_UNDERSTORY_GROUND_M, understoryDeckM: GROVE_UNDERSTORY_DECK_M };
+  {
+    const reach = distantVariants.map((v) => {
+      const pos = v.near.attributes.position;
+      let bole = 0;
+      let crown = 0;
+      for (let i = 0; i < pos.count; i++) {
+        const r = Math.hypot(pos.getX(i), pos.getZ(i));
+        if (pos.getY(i) < 1.2) bole = Math.max(bole, r);
+        crown = Math.max(crown, r);
+      }
+      let base = v.height;
+      for (let i = 0; i < pos.count; i++) if (Math.hypot(pos.getX(i), pos.getZ(i)) > bole * 1.6 + 0.4) base = Math.min(base, pos.getY(i));
+      return { bole, crown, base };
+    });
+    const huts = northGroveHuts();
+    for (let i = distantPlacements.length - 1; i >= 0; i--) {
+      const p = distantPlacements[i];
+      if (p.z > -76) continue;
+      const inBox = inExpansionNorth(p.x, p.z);
+      const gw = groveWalkDistance(p.x, p.z);
+      if (!inBox && gw === Infinity) continue;
+      const f = reach[p.variant];
+      const cards = gw < Math.max(GROVE_CARD_WALK_M, f.crown * p.scale * 0.85 + 1);
+      const crownHits = huts.some((h) => Math.hypot(p.x - h.x, p.z - h.z) < f.crown * p.scale * 0.85 + h.r && liveTerrain.height(p.x, p.z) + f.base * p.scale < h.top);
+      const crowds = groveUnderstory.some((u) => Math.hypot(p.x - u.x, p.z - u.z) < f.bole * p.scale + u.cr * 0.9);
+      if (cards || crownHits || crowds || (inBox && northGroveClear(p.x, p.z, f.bole * p.scale + 0.3))) {
+        northGrove.culled.push([Math.round(p.x * 10) / 10, Math.round(p.z * 10) / 10]);
+        distantPlacements.splice(i, 1);
+        continue;
+      }
+      if (!inBox) continue;
+      p.y = liveTerrain.height(p.x, p.z);
+      midLive.add(p);
+      northGrove.reseated++;
+    }
+  }
   // round 47: the crown cards (the geometry's second group) draw with their own material (distant.ts createDistantCrownMaterial: far-crown atlas, spherical shading, soft alpha, wind)
-  const distantCloseUniform = { value: Array.from({ length: DISTANT_CLOSE_SLOTS }, () => new Vector4()) };
-  const distantCrown = createDistantCrownMaterial(ctx.wind, rng, palette, sunDir, distantCloseUniform);
-  const distantCloseMaterial = cloneDistantCloseMaterial(mats.giantTreeNearCanopy);
-  const distantIds = new Map(distantPlacements.map((p, i) => [p, i]));
+  mark('grove-cull');
+  const distantCrown = createDistantCrownMaterial(ctx.wind, rng, palette, sunDir);
+  // the mid-canopy crowns share that atlas and turn off the treatments the far layer applies inside
+  // its 48 m gate (distant.ts MID_CROWN_LOOK) — at 12 m they would darken the mass to a quarter of
+  // its albedo and fade its vertical cards out as the view climbs to it
+  const midCrown = createDistantCrownMaterial(ctx.wind, rng, palette, sunDir, { ...MID_CROWN_LOOK, atlas: distantCrown.map ?? undefined });
+  mark('crown-materials');
   const distantSets: DistantSet[] = distantVariants.map((variant, i) => {
     const placements = distantPlacements.filter((p) => p.variant === i);
     const n = Math.max(1, placements.length);
+    const mid = variant.kind === 'mid';
     const make = (geometry: DistantVariant['near'], label: string, lodLevel: number) => {
-      const mesh = new InstancedMesh(geometry, [mats.distant, distantCrown], n);
-      mesh.name = `distant-${i}-${label}`;
+      const crown = mid ? midCrown : distantCrown;
+      const mesh = new InstancedMesh(geometry, [mats.distant, crown], n);
+      mesh.name = `${mid ? 'mid' : 'distant'}-${i}-${label}`;
       mesh.instanceColor = new InstancedBufferAttribute(new Float32Array(n * 3), 3);
       mesh.castShadow = false;
       mesh.receiveShadow = true;
       mesh.count = 0;
       mesh.visible = false;
-      mesh.userData.kind = 'distant-tree';
+      mesh.userData.kind = mid ? 'mid-tree' : 'distant-tree';
       mesh.userData.lodLevel = lodLevel;
+      // the two states `updateDistantMaterials` picks between each frame: the geometry's two groups on
+      // their own materials, or ONE material drawing both (distant.ts markWood tells bark from cards)
+      mesh.userData.matBoth = [mats.distant, crown];
+      mesh.userData.matCrown = crown;
       return mesh;
     };
     const near = make(variant.near, 'near', 0);
@@ -2821,49 +4192,56 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
       _p.set(p.x, p.y, p.z);
       return new Matrix4().compose(_p, _q, _s);
     });
-    const closeAsset = createDistantCloseCrown(variant, ctx.rng, Math.max(1, ...placements.map(p => p.scale)), palette, i);
-    const fade = new InstancedBufferAttribute(new Float32Array(DISTANT_CLOSE_SLOTS), 1).setUsage(DynamicDrawUsage);
-    const closeMesh = new InstancedMesh(closeAsset.geometry, distantCloseMaterial, DISTANT_CLOSE_SLOTS);
-    closeMesh.name = `distant-${i}-close-crown`;
-    closeMesh.userData.kind = 'distant-close-crown';
-    closeMesh.instanceColor = new InstancedBufferAttribute(new Float32Array(DISTANT_CLOSE_SLOTS * 3), 3);
-    closeMesh.castShadow = false;
-    closeMesh.receiveShadow = true;
-    closeMesh.count = 0;
-    closeMesh.visible = false;
-    const finalize = (geometry: BufferGeometry) => {
-      geometry.setAttribute('aDistantClose', fade);
-      geometry.computeBoundingSphere();
-      geometry.boundingSphere!.radius += CULL_PAD_M;
-    };
-    finalize(closeAsset.geometry);
-    const [item, first] = poolItem(`distant-close/${i}`, closeMesh, closeAsset.build, finalize);
-    nearCanopyPool.add(item, first);
-    distantGroup.add(closeMesh);
-    return { variant, near, far, placements, matrices, counts: [0, 0], lists: [[], []], submitted: [[], []],
-      ids: placements.map(p => distantIds.get(p)!), inverses: matrices.map(m => m.clone().invert()),
-      close: { bounds: closeAsset.bounds, mesh: closeMesh, fade, item, triangles: closeAsset.geometry.index!.count / 3 } };
+    return { variant, near, far, placements, matrices, counts: [0, 0], lists: [[], []], submitted: [[], []] };
   });
-  const distantById = new Map(distantSets.flatMap(set => set.ids.map((id, index) => [id, { set, index }] as const)));
-  let distantCloseSlots: DistantCloseSlot[] = [];
+  mark('distant-sets');
   group.add(distantGroup);
   ctx.progress('trees', 0.95);
+  step('giants-tail-total', tailT0);
+  phase('giants');
 
   // ------------------------------------------------------------------ LOD bucketing
-  const lodDist = [20 * ctx.quality.distance, 44 * ctx.quality.distance];
-  const distantNear = 120 * ctx.quality.distance;
+  const lodDist = [TREE_LOD_NEAR_M * ctx.quality.distance * TREE_LOD_SCALE[0], TREE_LOD_MID_M * ctx.quality.distance * TREE_LOD_SCALE[1]];
+  /**
+   * The rung band this build actually uses (lodFade.ts). Resolved once, because the gates are scaled by
+   * `quality.distance` and `?treelod=`, so whether a band fits between them is a property of the build
+   * rather than of the constant: at `quality=low` the gates are 7.2 m apart against 12 m at high.
+   *
+   * `lodSlots` returns on the first gate whose band contains `d`, so overlapping bands do not glitch —
+   * they silently skip the far gate's fade. Rather than let that ship, fall back to the hard cut, which is
+   * the behaviour the flag has always been able to return to, and say so on the console: the gauntlet's B6
+   * check ("console clean during capture") then turns a mis-set constant into a failed take instead of a
+   * defect nobody sees. Zero per-frame cost — `lodSlots` already takes the band as an argument.
+   */
+  const lodBandM = (() => {
+    if (!TREE_LOD_DITHER) return 0;
+    if (!bandOverlaps([lodDist[0], lodDist[1]], TREE_LOD_DITHER_BAND_M)) return TREE_LOD_DITHER_BAND_M;
+    console.error(
+      `trees: TREE_LOD_DITHER_BAND_M ${TREE_LOD_DITHER_BAND_M} m does not fit between this build's rung gates ` +
+        `(${lodDist[0].toFixed(1)} m and ${lodDist[1].toFixed(1)} m, ${(lodDist[1] - lodDist[0]).toFixed(1)} m apart at ` +
+        `quality=${ctx.quality.tier}); the far gate's fade would be skipped, so the band is off for this build`,
+    );
+    return 0;
+  })();
+  const distantNear = DISTANT_NEAR_M * ctx.quality.distance * TREE_LOD_SCALE[2];
   const camPos = new Vector3(Infinity, Infinity, Infinity);
   const white = new Color(1, 1, 1);
 
   // LOD buckets: every placement lands in exactly one bucket by camera distance
-  const bucketFamily = <P, T extends { x: number; z: number; scale: number }>(variants: FamilyVariant<P, T>[], cam: Vector3) => {
+  const bucketFamily = <P, T extends { x: number; z: number; scale: number }>(variants: FamilyVariant<P, T>[], cam: Vector3, hidden?: (p: T) => boolean) => {
     for (const w of variants) {
       const buckets: number[][] = [[], [], []];
       for (let i = 0; i < w.placements.length; i++) {
         const p = w.placements[i];
+        if (hidden?.(p)) continue;
         const d = Math.hypot(p.x - cam.x, p.z - cam.z) - w.lods[0].radius * p.scale * 0.5;
-        const l = d < lodDist[0] ? 0 : d < lodDist[1] ? 1 : 2;
-        buckets[l].push(i);
+        // lodFade.ts: one rung with TREE_LOD_DITHER off (the rule this line has always used), a pair
+        // inside a gate's transition band with it on. The weights travel in `w.lodWeights` for the
+        // drawing half; with the flag off the array is never written and never read.
+        for (const slot of lodSlots(d, [lodDist[0], lodDist[1]], lodBandM)) {
+          buckets[slot.level].push(i);
+          if (TREE_LOD_DITHER) (w.lodWeights ??= new Map()).set(lodWeightKey(slot.level, w.placements.length, i), slot.weight);
+        }
       }
       for (let l = 0; l < 3; l++) {
         w.lists[l] = buckets[l];
@@ -2874,15 +4252,24 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
   const bucketWhite = (cam: Vector3) => {
     bucketFamily(whites, cam);
     bucketFamily(seatedColumns, cam);
+    bucketFamily(understory, cam, groveNearXZ(cam.x, cam.z) ? undefined : (p) => p.grove === true);
   };
 
+  // Round 51's stand rule (the band-only poles at z < −62 took the far LOD from 50 m while the
+  // distant layer's gate was 120 / 72 m) retired in round 54: squad2's lodcheck pulled `DISTANT_NEAR_M`
+  // to 45 m, under the 50, so the min() it was inside always took the gate — every set switches at
+  // `distantNear` now, the mid grove at its own MID_FAR_LOD_M.
   const bucketDistant = (cam: Vector3) => {
     for (const set of distantSets) {
       const nearList: number[] = [];
       const farList: number[] = [];
+      // a mid tree is 8–15 m tall and never further than 58 m from the clearing's centre: its near
+      // LOD (12-sided bole, limbs, toes, the layered crown) is worth drawing to MID_FAR_LOD_M and
+      // no further — past it the crossed strips carry the same silhouette for a tenth of the wood
+      const kindNear = set.variant.kind === 'mid' ? Math.min(distantNear, MID_FAR_LOD_M * ctx.quality.distance * TREE_LOD_SCALE[2]) : distantNear;
       for (let i = 0; i < set.placements.length; i++) {
         const p = set.placements[i];
-        (Math.hypot(p.x - cam.x, p.z - cam.z) < distantNear ? nearList : farList).push(i);
+        (Math.hypot(p.x - cam.x, p.z - cam.z) < kindNear ? nearList : farList).push(i);
       }
       set.lists = [nearList, farList];
       set.counts = [nearList.length, farList.length];
@@ -2902,17 +4289,19 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
   /** the sphere (already padded) meets the frustum */
   const inView = (s: Sphere) => frustum.intersectsSphere(s);
   /**
-   * The volume the sphere's shadow sweeps along the sun direction (from the sphere down to
-   * SHADOW_FLOOR_Y) meets the frustum: a capsule is outside a plane iff both end spheres are.
+   * Does a caster's shade reach the frame? The test itself is `util/shadowReach.ts` — the caster's
+   * padded sphere swept down-sun, the sweep ended where the ground stops it, the capsule walked with
+   * covering spheres, short-circuited when the caster is already on screen — lifted out of here on
+   * 2026-09-28 so every system that casts can ask the same question (`sceneshade/` prices the rest:
+   * structures spend 719 K depth triangles for 0.49 % of camera A, this lane's 1.20 M buys 55 %).
+   *
+   * Applied at structures' current mesh granularity it recovered only 25 K at F_canopy and nothing at
+   * A or the flight's foot: a merged house or fence run has a sphere too large for the capsule to miss
+   * the frame. What made it pay here was round 52's split of each sector into one group per giant — the
+   * lesson for any lane that wants this is granularity, not the test.
    */
-  const shadowReaches = (s: Sphere) => {
-    const span = Math.max(0, (s.center.y + s.radius - SHADOW_FLOOR_Y) / Math.max(0.05, sunNow.y));
-    shadowEnd.copy(s.center).addScaledVector(sunNow, -span);
-    for (const plane of frustum.planes) {
-      if (plane.distanceToPoint(s.center) < -s.radius && plane.distanceToPoint(shadowEnd) < -s.radius) return false;
-    }
-    return true;
-  };
+  const shade = createShadowReach({ groundAt: (x, z) => liveTerrain.height(x, z), floorY: SHADOW_FLOOR_Y, padM: CULL_PAD_M });
+  const shadowReachesGround = (s: Sphere) => shade.reaches(s);
   /** world bounding sphere of placement `i` of `w` at LOD `l`, padded */
   const instanceSphere = <P, T extends { x: number; z: number; scale: number }>(w: FamilyVariant<P, T>, l: number, i: number, out: Sphere) => {
     const bs = w.lods[l].geometry.boundingSphere!;
@@ -2920,9 +4309,82 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
     out.radius = bs.radius * w.placements[i].scale + CULL_PAD_M;
     return out;
   };
-  const fillFamily = <P, T extends { x: number; z: number; scale: number }>(w: FamilyVariant<P, T>, l: number, list: number[]) => {
+  /** wind sway + a margin for the hull test (m, before the instance scale) */
+  const HULL_PAD_M = 1.5;
+  const hullSphere = new Sphere();
+  const hullSpheres: Sphere[] = [new Sphere(), new Sphere(), new Sphere()];
+  /** the instance's colour-pass hull meets the frustum (false only when every hull sphere is outside one plane) */
+  const hullInView = <P, T extends { x: number; z: number; scale: number }>(w: FamilyVariant<P, T>, l: number, i: number) => {
+    const hull = w.meshes[l].userData.hull as Sphere[] | undefined;
+    if (!hull) return true;
+    const scale = w.placements[i].scale;
+    for (let k = 0; k < hull.length; k++) {
+      hullSpheres[k].center.copy(hull[k].center).applyMatrix4(w.matrices[i]);
+      hullSpheres[k].radius = hull[k].radius * scale + HULL_PAD_M;
+    }
+    for (const plane of frustum.planes) {
+      let outside = true;
+      for (let k = 0; k < hull.length && outside; k++) {
+        hullSphere.copy(hullSpheres[k]);
+        if (plane.distanceToPoint(hullSphere.center) >= -hullSphere.radius) outside = false;
+      }
+      if (outside) return false;
+    }
+    return true;
+  };
+  /**
+   * Round 52 (W38): a casting instance behind the camera stays submitted for its shadow, but the
+   * colour pass drew it too — at A the three high-LOD white-barks behind the stairs (99–138° off
+   * axis, 9–17 m) cost 254 K triangles for no pixel. `fillFamily` packs the in-view instances first
+   * and remembers how many there are; the colour pass draws only those (`onBeforeRender` shrinks
+   * `count`, `onAfterRender` restores it). Three renders the shadow maps before the scene and never
+   * calls `onBeforeRender` from the shadow pass, so every kept instance still casts.
+   */
+  const MAIN_COUNT = 'mainCount';
+  const FULL_COUNT = 'fullCount';
+  const installMainPassCount = (mesh: InstancedMesh) => {
+    if (mesh.userData[FULL_COUNT] !== undefined) return;
+    mesh.userData[FULL_COUNT] = mesh.count;
+    mesh.userData[MAIN_COUNT] = mesh.count;
+    mesh.onBeforeRender = () => {
+      mesh.count = mesh.userData[MAIN_COUNT] as number;
+    };
+    mesh.onAfterRender = () => {
+      mesh.count = mesh.userData[FULL_COUNT] as number;
+    };
+  };
+  /**
+   * lodFade.ts: the per-instance screen-door DROP fraction for the rung a `fillFamily` pass is writing
+   * (0 = draw the whole tree, 0.4 = discard two fifths of its fragments), in the colour pass's own
+   * instance order. Lazily attached, and only while `TREE_LOD_DITHER` is on.
+   *
+   * The drop, not the weight: `mats.whiteTree` also paints the white-bark ROOTS mesh, which
+   * `fillFamily` never fills, so that geometry never gets this attribute and WebGL feeds the program a
+   * default of 0 for it. With the drop encoding that default means "draw whole"; with a weight it would
+   * have meant "discard everything", and the roots would vanish the moment the flag went on.
+   *
+   * It lives on the rung's geometry, which the white-barks' high bucket SHARES with its shadow proxy
+   * (`new InstancedMesh(w.lods[1].geometry, …)`): the proxy fills the same geometry with a different
+   * instance order, so the weight is only correct for the colour pass. The discard that reads it must
+   * therefore be colour-pass only — the depth pass keeps the outgoing rung's silhouette across the
+   * band, which for 2.5 m of walking is the right trade anyway.
+   */
+  const fadeAttribute = (mesh: InstancedMesh): InstancedBufferAttribute => {
+    const existing = mesh.geometry.getAttribute('aLodDrop') as InstancedBufferAttribute | undefined;
+    if (existing) return existing;
+    const attr = new InstancedBufferAttribute(new Float32Array(mesh.instanceMatrix.count), 1);
+    attr.setUsage(DynamicDrawUsage);
+    mesh.geometry.setAttribute('aLodDrop', attr);
+    return attr;
+  };
+  const fillFamily = <P, T extends { x: number; z: number; scale: number }>(w: FamilyVariant<P, T>, l: number, list: number[], mainCount = list.length) => {
     const mesh = w.meshes[l];
     for (let k = 0; k < list.length; k++) mesh.setMatrixAt(k, w.matrices[list[k]]);
+    if (TREE_LOD_DITHER) {
+      const attr = fadeAttribute(mesh);
+      for (let k = 0; k < list.length; k++) attr.setX(k, 1 - (w.lodWeights?.get(lodWeightKey(l as 0 | 1 | 2, w.placements.length, list[k])) ?? 1));
+      attr.needsUpdate = true;
+    }
     mesh.count = list.length;
     mesh.visible = list.length > 0;
     mesh.instanceMatrix.needsUpdate = true;
@@ -2933,6 +4395,9 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
       mesh.computeBoundingSphere();
       mesh.boundingSphere!.radius += CULL_PAD_M;
     }
+    installMainPassCount(mesh);
+    mesh.userData[FULL_COUNT] = list.length;
+    mesh.userData[MAIN_COUNT] = mainCount;
     w.submitted[l] = list;
   };
   const submitFamily = <P, T extends { x: number; z: number; scale: number }>(variants: FamilyVariant<P, T>[]) => {
@@ -2940,11 +4405,55 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
       for (let l = 0; l < 3; l++) {
         const casts = w.meshes[l].castShadow;
         const kept: number[] = [];
+        const shadowOnly: number[] = [];
         for (const i of w.lists[l]) {
           instanceSphere(w, l, i, sphere);
-          if (inView(sphere) || (casts && shadowReaches(sphere))) kept.push(i);
+          if (inView(sphere) && hullInView(w, l, i)) kept.push(i);
+          else if (casts && shadowReachesGround(sphere)) shadowOnly.push(i);
         }
-        if (!sameList(kept, w.submitted[l])) fillFamily(w, l, kept);
+        if (l === 0 && w.shadowProxy) {
+          // the high bucket's shadow-only instances cast from the medium-geometry twin
+          if (!sameList(kept, w.submitted[l]) || w.meshes[l].userData[MAIN_COUNT] !== kept.length) fillFamily(w, l, kept, kept.length);
+          if (!sameList(shadowOnly, w.submittedShadow!)) {
+            const proxy = w.shadowProxy;
+            for (let k = 0; k < shadowOnly.length; k++) proxy.setMatrixAt(k, w.matrices[shadowOnly[k]]);
+            proxy.count = shadowOnly.length;
+            proxy.visible = shadowOnly.length > 0;
+            proxy.instanceMatrix.needsUpdate = true;
+            if (shadowOnly.length) {
+              proxy.computeBoundingSphere();
+              proxy.boundingSphere!.radius += CULL_PAD_M;
+            }
+            /**
+             * The proxy exists ONLY to cast: every instance in it is a tree the view frustum rejected whose
+             * shade still reaches the frame, and its material is `colorWrite: false, depthWrite: false`. But
+             * its aggregate sphere encloses several out-of-view trees and carries `CULL_PAD_M`, so it clips
+             * the frustum edge often — and three then submits it in the COLOUR pass too, where it draws
+             * nothing at all. At `lookspots/`'s `stairs1-top`, the frame closest to the 700-draw line at
+             * 665, that was **8 wasted draws of 12** this family spent.
+             *
+             * Two obvious ways out are both closed by three's source, which is why this is the third:
+             * `object.layers` is tested in the shadow pass against the MAIN camera's layers
+             * (`WebGLShadowMap.renderObject`), so hiding it from the camera hides it from the shadow map;
+             * and the same function guards its single-material branch with `else if (material.visible)`, so
+             * `material.visible = false` deletes the shade as well.
+             *
+             * `installMainPassCount` already solves it for the ordinary buckets: a count of 0 makes
+             * `WebGLBufferRenderer.renderInstances` return before it issues a draw or touches `info.render`,
+             * and the shadow pass is unaffected because it runs first and calls `onBeforeShadow`, never
+             * `onBeforeRender`. So the proxy's main-pass count is pinned at 0 and its full count follows
+             * whatever this submission just set.
+             */
+            installMainPassCount(proxy);
+            proxy.userData[FULL_COUNT] = shadowOnly.length;
+            proxy.userData[MAIN_COUNT] = 0;
+            w.submittedShadow = shadowOnly;
+          }
+          continue;
+        }
+        const mainCount = kept.length;
+        for (const i of shadowOnly) kept.push(i);
+        if (!sameList(kept, w.submitted[l]) || w.meshes[l].userData[MAIN_COUNT] !== mainCount) fillFamily(w, l, kept, mainCount);
       }
     }
   };
@@ -2981,14 +4490,207 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
       }
     }
   };
+  /**
+   * How far the nearest BARK FRAGMENT of each distant / mid mesh stands from the camera, and how many of
+   * those meshes have every fragment beyond `DISTANT_BARK_M[1]`.
+   *
+   * Report-only. It prices the one way left to collect the 15–17 draws `woodgain/` measured and could not
+   * ship: a mesh drawn by ONE material instead of `[mats.distant, crown]` is one draw instead of two, and the
+   * only thing `mats.distant` does to bark that the crown material cannot reproduce is its near treatment —
+   * the cylindrical bark map, the tone bands, the cord stripe, the furrow and the shade floor — every term of
+   * which is scaled by `1 - smoothstep(DISTANT_BARK_M[0], [1], length(vViewPosition))` and so is exactly zero
+   * beyond the far edge. Where a whole mesh is out there the swap is safe; where it is not, F_canopy's mid
+   * bole is what happens (a flat grey cylinder).
+   *
+   * The test is per FRAGMENT, not per instance centre: `|cam − centre| − radius` is the nearest a fragment of
+   * that instance can be, so a mesh qualifies only if its closest possible bark is past the window.
+   */
+  const barkNear = new Vector3();
+  const barkCentre = new Vector3();
+  /**
+   * How near the closest BARK fragment of a mesh can be: per submitted instance, |cam − centre| − radius of
+   * the geometry's WOOD sphere (distant.ts markWood). The whole geometry's sphere is the wrong one — the
+   * crown cards reach metres further out than the bole in every direction, so it would put a tree's nearest
+   * point ~10 m in front of its trunk and disqualify meshes whose bark is comfortably past the window.
+   */
+  const nearestBarkOf = (set: DistantSet, l: 0 | 1, eye: Vector3) => {
+    const geometry = l === 0 ? set.variant.near : set.variant.far;
+    const wood = geometry.userData.woodSphere as { centre: [number, number, number]; radius: number } | undefined;
+    const centre = wood ? barkCentre.fromArray(wood.centre) : geometry.boundingSphere!.center;
+    const radius = wood ? wood.radius : geometry.boundingSphere!.radius;
+    let closest = Infinity;
+    for (const i of set.submitted[l]) {
+      sphere.center.copy(centre).applyMatrix4(set.matrices[i]);
+      closest = Math.min(closest, eye.distanceTo(sphere.center) - radius * set.placements[i].scale);
+    }
+    return closest;
+  };
+  /**
+   * Pick each distant / mid mesh's material for this frame: ONE material where its nearest bark fragment is
+   * past the window, both where it is not. The rule and its hysteresis band are `distant.ts
+   * oneMaterialWanted`, pinned by `gates.test.mjs` — the property that bark inside the window never draws on
+   * one material is the one `woodgain/` violated, and it is worth a test rather than a comment.
+   */
+  const updateDistantMaterials = () => {
+    if (!TREE_ONE_MATERIAL_FAR) return;
+    const eye = ctx.camera.getWorldPosition(barkNear);
+    for (const set of distantSets) {
+      for (const l of [0, 1] as const) {
+        const mesh = l === 0 ? set.near : set.far;
+        const one = !Array.isArray(mesh.material);
+        // an empty mesh draws nothing either way; leave its state alone so it does not flip on re-entry
+        if (!mesh.visible || mesh.count === 0) continue;
+        const want = oneMaterialWanted(one, nearestBarkOf(set, l, eye), ONE_MATERIAL_LEAVE_M, ONE_MATERIAL_ENTER_M);
+        if (want === one) continue;
+        mesh.material = want ? (mesh.userData.matCrown as Material) : (mesh.userData.matBoth as Material[]);
+      }
+    }
+  };
+  const distantBarkWindow = () => {
+    const cam = ctx.camera;
+    cam.updateMatrixWorld();
+    const eye = cam.getWorldPosition(barkNear);
+    let beyond = 0;
+    let within = 0;
+    let oneMaterial = 0;
+    let nearestM = Infinity;
+    const perMesh: Record<string, number> = {};
+    for (const set of distantSets) {
+      for (const l of [0, 1] as const) {
+        const mesh = l === 0 ? set.near : set.far;
+        if (!mesh.visible || mesh.count === 0) continue;
+        const closest = nearestBarkOf(set, l, eye);
+        if (closest === Infinity) continue;
+        perMesh[mesh.name] = Math.round(closest * 10) / 10;
+        nearestM = Math.min(nearestM, closest);
+        if (closest >= DISTANT_BARK_M[1]) beyond++;
+        else within++;
+        if (!Array.isArray(mesh.material)) oneMaterial++;
+      }
+    }
+    return {
+      /** meshes whose closest bark fragment is past DISTANT_BARK_M[1] — one draw each is available */
+      beyond,
+      /** meshes with bark inside the window, which must keep both materials */
+      within,
+      /** how many are actually on one material this frame (the hysteresis band makes this ≤ beyond, briefly) */
+      oneMaterial,
+      enabled: TREE_ONE_MATERIAL_FAR,
+      nearestM: nearestM === Infinity ? null : Math.round(nearestM * 10) / 10,
+      windowM: [DISTANT_BARK_M[0], DISTANT_BARK_M[1]] as [number, number],
+      perMesh,
+    };
+  };
   // giant sectors: world-space geometry; three culls the colour pass by the same sphere itself
+  /**
+   * Exact box-vs-frustum (separating axes): `Frustum.intersectsBox` only asks whether the box is
+   * wholly behind one plane, and a 26 m crown that starts a metre from the camera straddles two
+   * planes without meeting the frustum's volume. Axes tried: the box's three, the frustum's six
+   * plane normals, and the 18 cross products of the box axes with the frustum's edge directions.
+   */
+  const frustumCorners = Array.from({ length: 8 }, () => new Vector3());
+  const frustumEdges = Array.from({ length: 6 }, () => new Vector3());
+  const invViewProj = new Matrix4();
+  const satAxis = new Vector3();
+  const boxCenter = new Vector3();
+  const boxHalf = new Vector3();
+  const frustumCornersFor = (camera: Camera) => {
+    invViewProj.copy(viewProj).invert();
+    let k = 0;
+    for (const z of [-1, 1]) for (const y of [-1, 1]) for (const x of [-1, 1]) frustumCorners[k++].set(x, y, z).applyMatrix4(invViewProj);
+    // edge directions: near-plane right (0→1) and up (0→2), and the four side edges near→far
+    frustumEdges[0].subVectors(frustumCorners[1], frustumCorners[0]).normalize();
+    frustumEdges[1].subVectors(frustumCorners[2], frustumCorners[0]).normalize();
+    for (let i = 0; i < 4; i++) frustumEdges[2 + i].subVectors(frustumCorners[4 + i], frustumCorners[i]).normalize();
+    void camera;
+  };
+  const separatedOn = (axis: Vector3, box: Box3) => {
+    const len = axis.length();
+    if (len < 1e-6) return false;
+    const r = boxHalf.x * Math.abs(axis.x) + boxHalf.y * Math.abs(axis.y) + boxHalf.z * Math.abs(axis.z);
+    const c = boxCenter.dot(axis);
+    let lo = Infinity;
+    let hi = -Infinity;
+    for (const p of frustumCorners) {
+      const d = p.dot(axis);
+      if (d < lo) lo = d;
+      if (d > hi) hi = d;
+    }
+    return hi < c - r || lo > c + r;
+  };
+  const boxMeetsFrustum = (box: Box3) => {
+    if (!frustum.intersectsBox(box)) return false;
+    box.getCenter(boxCenter);
+    box.getSize(boxHalf).multiplyScalar(0.5);
+    for (const axis of [satAxis.set(1, 0, 0), satAxis.set(0, 1, 0), satAxis.set(0, 0, 1)]) if (separatedOn(axis, box)) return false;
+    for (let b = 0; b < 3; b++) {
+      for (const e of frustumEdges) {
+        satAxis.set(b === 0 ? 1 : 0, b === 1 ? 1 : 0, b === 2 ? 1 : 0).cross(e);
+        if (separatedOn(satAxis, box)) return false;
+      }
+    }
+    return true;
+  };
+  const markGroups = () => {
+    for (const mesh of groupMeshes) {
+      const boxes = mesh.userData.groupBoxes as Box3[];
+      const spheres = mesh.userData.groupSpheres as Sphere[];
+      const inView = mesh.userData.groupInView as boolean[];
+      // a round crown's sphere is tighter than its box against the frustum's top plane; both must meet
+      for (let i = 0; i < boxes.length; i++) inView[i] = frustum.intersectsSphere(spheres[i]) && boxMeetsFrustum(boxes[i]);
+    }
+  };
   const submitGiants = () => {
+    markGroups();
     if (!ctx.quality.shadows) return;
     for (const mesh of sectorMeshes) {
       if (mesh.userData.kind === 'giant-authored-leaves' || mesh.userData.kind === 'giant-authored-cards') continue; // never cast
       sphere.copy(mesh.geometry.boundingSphere!);
       sphere.radius += CULL_PAD_M;
-      mesh.castShadow = shadowReaches(sphere);
+      mesh.castShadow = shadowReachesGround(sphere);
+      // then per giant, for the sectors that carry groups: the sector's own sphere spans ~50 × 55 m
+      // and reaches nearly every frame, while a single giant's crown or wood often does not
+      const casts = mesh.userData.groupCasts as boolean[] | undefined;
+      const spheres = mesh.userData.groupSpheres as Sphere[] | undefined;
+      if (!casts || !spheres) continue;
+      let any = false;
+      if (mesh.castShadow) {
+        for (let i = 0; i < spheres.length; i++) {
+          casts[i] = shadowReachesGround(spheres[i]);
+          if (casts[i]) any = true;
+        }
+        // nothing left to draw: drop the mesh instead of issuing count-0 draws per group
+        if (!any) mesh.castShadow = false;
+      } else casts.fill(true);
+    }
+    for (const batch of farFoliage) {
+      sphere.copy(batch.mesh.boundingSphere!);
+      sphere.radius += CULL_PAD_M;
+      /**
+       * This is the trees' largest single depth consumer — **357 512 triangles at hero A**, 28 % of their
+       * shade, and more than the whole 275 197 of W38 headroom on the binding view. It read 124 240 until
+       * the batch's own depth list was read (`auditvsrenderer/`), so its size was not knowable before.
+       *
+       * Measured without it (`farshade/`): hero A 8 724 803 → 8 367 291 and `stairs1-top` 9 799 283 →
+       * 9 347 687, −3 draws each — and **18.00 % / 12.46 % of those frames move**. It is the canopy's
+       * self-shadowing: the crowns lose their internal shading and read as flat green masses, which is the
+       * defect the white-bark laminae exist to avoid. Load-bearing; do not gate it further without a
+       * cheaper caster that keeps the crown's interior dark.
+       */
+      batch.mesh.castShadow = shadowReachesGround(sphere);
+    }
+    // the pooled near parts: the build arms them (`staticCasts`) and this narrows them per frame.
+    // They are the last casters with no shadow test — at the main flight's foot the four giant
+    // bases and two column bases shown were 155 K of depth for a frame their shade never enters.
+    for (const nb of nearBoles) {
+      const mesh = nb.mesh;
+      if (!mesh.visible || mesh.userData.staticCasts !== true) continue;
+      const bs = mesh.geometry.boundingSphere;
+      if (!bs) continue;
+      mesh.updateMatrixWorld();
+      sphere.copy(bs).applyMatrix4(mesh.matrixWorld);
+      sphere.radius += CULL_PAD_M;
+      mesh.castShadow = shadowReachesGround(sphere);
     }
   };
   /** trim every bucket for `camera`; skipped while the view-projection is unchanged (unless forced) */
@@ -2998,14 +4700,18 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
     if (!force && viewProj.equals(lastViewProj)) return;
     lastViewProj.copy(viewProj);
     frustum.setFromProjectionMatrix(viewProj);
+    shade.prepare(camera, ctx.sun ? sunNow.subVectors(ctx.sun.position, ctx.sun.target.position) : sunDir);
+    frustumCornersFor(camera);
     if (ctx.sun) {
       sunNow.subVectors(ctx.sun.position, ctx.sun.target.position);
       if (sunNow.lengthSq() > 1e-6) sunNow.normalize();
       else sunNow.copy(sunDir);
     }
     submitFamily(whites);
+    submitFamily(understory);
     submitFamily(seatedColumns);
     submitDistant();
+    updateDistantMaterials();
     submitGiants();
   };
 
@@ -3060,9 +4766,46 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
   // world-space rule; a part is never removed from the catalogue because of another camera.
   for (const nc of nearCanopies) {
     if (nc.fixedSwap || nc.persistent) continue;
-    nc.inM = Math.min(nc.inM, NEAR_LOD_TIER.canopySwapM[0]);
-    nc.outM = Math.min(nc.outM, NEAR_LOD_TIER.canopySwapM[1]);
+    // `TREE_LOD_SCALE[3]` is the dev knob's fourth component (`?treelod=,,,<mult>`): it scales this
+    // band so the crown swap's own share of "the trees spawn when I get close" can be read on its own,
+    // the way the white-barks' rungs were. 1 = shipped.
+    nc.inM = Math.min(nc.inM, NEAR_LOD_TIER.canopySwapM[0]) * TREE_LOD_SCALE[3];
+    nc.outM = Math.min(nc.outM, NEAR_LOD_TIER.canopySwapM[1]) * TREE_LOD_SCALE[3];
   }
+  /**
+   * How much nearer a challenger must be to take a shown part's slot (see byRank): an incumbent ranks
+   * at this share off its own distance. 0.25 is one step of the walk probe's 4 m at the ~16 m boundary
+   * the cap puts in the village, so ordinary forward walking still hands slots over — it is the
+   * near-ties that stop trading places.
+   */
+  const NEAR_CANOPY_KEEP = 0.25;
+  /**
+   * Why the ranking is DISTANCE and the cap is not raised (2026-09-24, lane 2, measured at the owner's
+   * 06:50 pose — `nearCanopy.shownCoverage / activeCoverage` in the audit is the share of the crown mass
+   * around the player that draws its near laminae):
+   *   • the 64 slots are a TRIANGLE budget, not a uniform-array limit. Uncapped, the plaza's 214 active
+   *     lobes would draw ≈ 1.81 M triangles of near foliage against the 0.56 M the 64 draw now, and
+   *     camera A sits 0.07 M under W38's 9 M gate. Raising `NEAR_CANOPY_SLOTS` is not available.
+   *   • ranking by apparent size (`dist / radius`) instead lifts coverage 57.6 % → 61.3 % but spends
+   *     10 % more triangles to do it — 3 % WORSE per triangle — and pushes the shown set out to 19.1 m,
+   *     away from where the near version earns its keep. It buys more, not better.
+   *   • ranking by coverage per triangle collapses to 3 shown lobes: it prefers cheap far crowns, which
+   *     the pool (prefetching by distance) has not built, so `resident` filters them out. Any ranking
+   *     that disagrees with the prefetch starves itself.
+   *   • ranking by WHETHER THE PART IS IN THE FRAME, distance second, was tried on 2026-09-27 with the
+   *     frustum grown 6 m so a crown is promoted before it comes into shot
+   *     (`art/environment/squad2-2026-09-23/slots`). It works as designed and it is not worth it: the
+   *     tier is saturated at 79 parts and 77–100 % of them are OUTSIDE the frame (the plaza's authored
+   *     boughs surround the camera), so at camera A it lifted the parts in frame from 10 to 29 and cut
+   *     the in-frame parts with no slot from 21 to 2 — and the frame moved **0.46 %** for **+189 697
+   *     triangles**, half of A's headroom under W38; F_canopy moved 0.01 % for +109 968. Nineteen more
+   *     crowns in their near form at 15.6–26 m are indistinguishable from their folded far foliage
+   *     (means 95.8 vs 95.7, thirds equal to 0.3), which also says the near form does not earn its keep
+   *     at that range: the direction worth pricing there is DOWN (fable-4's slot cap), not outward.
+   * Distance agrees with the prefetch and puts the detail nearest the eye, so it stays.
+   */
+  /** the parts shown by the previous non-reset update (byRank's incumbents) */
+  const shownLastFrame = new Set<NearCanopy>();
   const nearCanopyUpdate = (cam: Vector3, reset: boolean) => {
     nearCanopyPool.begin();
     for (const nc of nearCanopies) {
@@ -3071,11 +4814,47 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
       else if (nc.active) nc.active = nc.dist <= nc.outM;
       else nc.active = nc.dist < nc.inM;
     }
+    /**
+     * 2026-09-24 (lane 2, the owner's 20:08 "why don't the trees immediately spawn instead of needing
+     * me to get close"): the in / out radii carry hysteresis, but the SLOT CAP had none, and the cap is
+     * what actually decides. Walked from the plaza to the north clearing (12 poses, the probe
+     * `art/environment/squad2-2026-09-23/canopy-walk.mjs`): 135–218 lobes are active against
+     * `NEAR_CANOPY_SLOTS` = 64 at EVERY step — an overflow of 71 to 154 — so the shown set is the "64
+     * nearest" and nothing damps it: 22.5 of the 79 shown parts were admitted or evicted per 4 m of
+     * walking, each one a crown flipping between its near laminae and its folded far foliage within
+     * 17 m of the camera. (It also means the effective swap boundary is not the nominal 26 m: the
+     * farthest shown part ran 16.3 m in the village and 42.2 m in the clearing, wherever the 64th
+     * nearest lobe happened to fall — which is why widening the 26 / 30 band changed 0.00 %.)
+     *
+     * 2026-09-27, the other side of that band, because the view-first ranking above showed the near
+     * form is indistinguishable from the folded far foliage at 15.6-26 m and so suggested the tier
+     * could be CHEAPER (`?treelod=,,,<k>` scales this band; A / F / the foot, frozen clock):
+     *
+     *   20.8 m (k 0.8)  A 8 631 286, F 7 836 917, foot 9 129 709 — the same frames to the digit
+     *   15.6 m (k 0.6)  A 8 621 260, F 7 800 344, foot 9 125 523 — 0.00 % of every frame moved
+     *
+     * so narrowing the band 40 % is free in pixels and saves only 4-37 K triangles: the parts it drops
+     * are off screen, where the batch's `perObjectFrustumCulled` already drew nothing, and the in-view
+     * count is unchanged at A (10) and at the foot (18). The tier's drawn cost lives in the handful of
+     * in-view parts nearest the camera, which any cap must keep — so a slot or distance cap on this
+     * tier buys pool memory and CPU, not triangles, and both directions are now priced
+     * (art/environment/squad2-2026-09-23/slots).
+     *
+     * An incumbent now ranks as if it were `NEAR_CANOPY_KEEP` nearer than it is, so a challenger must
+     * be meaningfully nearer to take its slot. Both are inside their own in-radius either way, so the
+     * frame is as correct as before and stops changing under the walker; it also spares the pool the
+     * rebuilds that the evictions caused. NOT applied on `reset` — an explicit re-pose (every capture)
+     * must draw the same parts whether the pool was cold or warm, so the six fixed frames are
+     * untouched by construction.
+     */
     const byDist = (a: NearCanopy, b: NearCanopy) => a.dist - b.dist || a.center.distanceToSquared(cam) - b.center.distanceToSquared(cam);
+    const keep = reset ? 1 : 1 - NEAR_CANOPY_KEEP;
+    const rankOf = (nc: NearCanopy) => nc.dist * (shownLastFrame.has(nc) ? keep : 1);
+    const byRank = (a: NearCanopy, b: NearCanopy) => rankOf(a) - rankOf(b) || byDist(a, b);
     const resident = (nc: NearCanopy) => nearCanopyPool.isResident(nc.item);
     const persistent = nearCanopies.filter((nc) => nc.persistent);
-    const lobeCandidates = nearCanopies.filter((nc) => !nc.persistent && nc.active && nc.kind === 'lobe').sort(byDist).slice(0, NEAR_CANOPY_SLOTS);
-    const limbCandidates = nearCanopies.filter((nc) => nc.active && nc.kind === 'limb').sort(byDist).slice(0, NEAR_CANOPY_LIMBS_MAX);
+    const lobeCandidates = nearCanopies.filter((nc) => !nc.persistent && nc.active && nc.kind === 'lobe').sort(byRank).slice(0, NEAR_CANOPY_SLOTS);
+    const limbCandidates = nearCanopies.filter((nc) => nc.active && nc.kind === 'limb').sort(byRank).slice(0, NEAR_CANOPY_LIMBS_MAX);
     if (reset) {
       // Explicit re-poses retain the capture contract: the same pose draws the same parts,
       // whether the pool was cold or warm. Ordinary updates keep their chunked prefetch.
@@ -3096,7 +4875,16 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
     const shownLobes = lobeCandidates.filter(resident).filter(fits);
     const shownLimbs = limbCandidates.filter(resident).filter(fits);
     // A walking camera keeps far foliage for parts still queued through work()'s frame budget.
-    for (const nc of nearCanopies) nc.mesh.visible = shownPersistent.includes(nc) || shownLobes.includes(nc) || shownLimbs.includes(nc);
+    for (const nc of nearCanopies) {
+      const shown = shownPersistent.includes(nc) || shownLobes.includes(nc) || shownLimbs.includes(nc);
+      nc.shown = shown;
+      if (nc.mesh) nc.mesh.visible = shown;
+      else if (nc.batchIds && nc.batch) nc.batch.setVisible(nc.batchIds.instId, shown);
+    }
+    // the incumbents the next update ranks with NEAR_CANOPY_KEEP (see byRank)
+    shownLastFrame.clear();
+    for (const nc of shownLobes) shownLastFrame.add(nc);
+    for (const nc of shownLimbs) shownLastFrame.add(nc);
     for (const nc of [...shownPersistent, ...shownLobes, ...shownLimbs]) nearCanopyPool.pin(nc.item);
     if (reset) nearCanopyPool.work(0);
     const slots = mats.nearCanopy.value;
@@ -3105,62 +4893,17 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
       if (nc) slots[i].set(nc.root.x, nc.root.y, nc.root.z, 3 + nc.group);
       else slots[i].set(0, 0, 0, 0);
     }
-  };
-  const closeLocal = new Vector3();
-  const distantCloseUpdate = (cam: Vector3, dt: number, reset: boolean) => {
-    const candidates: { id: number; distance: number }[] = [];
-    for (const set of distantSets) {
-      let nearest = Infinity;
-      const ready = reset || nearCanopyPool.isResident(set.close.item);
-      // Submission already checked the current view. The distance is to the crown's 3D
-      // envelope, including its underside, never to the tree's base or a fixed hero camera.
-      for (const index of set.submitted[0]) {
-        closeLocal.copy(cam).applyMatrix4(set.inverses[index]);
-        const distance = set.close.bounds.distanceToPoint(closeLocal) * set.placements[index].scale;
-        nearest = Math.min(nearest, distance);
-        if (ready && distance < DISTANT_CLOSE_FADE_M[1]) candidates.push({ id: set.ids[index], distance });
-      }
-      if (nearest < DISTANT_CLOSE_PREFETCH_M) nearCanopyPool.want(set.close.item, nearest);
-    }
-    // Walking keeps the old crown until prefetch installs the replacement; its fade starts
-    // only after residency. Explicit re-poses retain their synchronous capture contract.
-    distantCloseSlots = updateDistantCloseSlots(distantCloseSlots, candidates, dt, reset);
-    // Protect resident selections before a cold reset pin can evict a later variant.
-    for (const set of distantSets) {
-      if (nearCanopyPool.isResident(set.close.item) && distantCloseSlots.some(slot => slot.weight > 0 && distantById.get(slot.id)!.set === set)) {
-        nearCanopyPool.pin(set.close.item);
-      }
-    }
-    for (const slot of distantCloseUniform.value) slot.set(0, 0, 0, 0);
-    for (const set of distantSets) {
-      const { mesh, fade, item } = set.close;
-      let n = 0;
-      for (let k = 0; k < distantCloseSlots.length; k++) {
-        const slot = distantCloseSlots[k], owner = distantById.get(slot.id)!;
-        if (owner.set !== set || slot.weight <= 0) continue;
-        // Every walking selection is already resident; a reset may finish/install it now.
-        nearCanopyPool.pin(item);
-        const p = set.placements[owner.index];
-        mesh.setMatrixAt(n, set.matrices[owner.index]);
-        mesh.setColorAt(n, p.tint);
-        fade.setX(n, slot.weight);
-        distantCloseUniform.value[k].set(p.x, p.y, p.z, slot.weight);
-        n++;
-      }
-      mesh.count = n;
-      mesh.visible = n > 0;
-      if (n) {
-        mesh.instanceMatrix.needsUpdate = true;
-        mesh.instanceColor!.needsUpdate = true;
-        fade.needsUpdate = true;
-        mesh.computeBoundingSphere();
-      }
+    // the giants' slotted lobes' far laminae leave the colour pass (FarFoliageBatch) — the same set the
+    // slots fold; the columns' keys name no instance and fold in the shader as before
+    if (farFoliage.length) {
+      const keys = shownLobes.map((nc) => `${nc.tree}/${nc.group}`);
+      for (const batch of farFoliage) batch.fold(keys);
     }
   };
   // the detached boughs' gate (see detachedGroup): the casters' spheres once, tested per pose
   const detachedSpheres = detachedCasters.flatMap((c) => casterSpheres(c, sunDir));
   const detachedVisible = (camera: Camera) => detachedMeshes.length > 0 && expansionVisible(camera, detachedSpheres);
-  const rebucket = (camera: Camera, force = false, dt = 0) => {
+  const rebucket = (camera: Camera, force = false) => {
     camera.getWorldPosition(_v);
     const moved = force || _v.distanceTo(camPos) >= 1.5;
     if (moved) {
@@ -3171,7 +4914,6 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
     nearBoleUpdate(_v, force);
     nearCanopyUpdate(_v, force);
     cull(camera, moved);
-    distantCloseUpdate(_v, dt, force);
     detachedGroup.visible = detachedVisible(camera);
   };
   rebucket(ctx.camera, true);
@@ -3186,6 +4928,8 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
   const liveSeated = new Set<[number, number, number]>();
   whitePlacements.forEach((p, i) => p.view === 'live' && liveSeated.add(whiteBases[i]));
   columnPlacements.forEach((p, i) => p.view === 'live' && liveSeated.add(columnBases[i]));
+  liveContacts.forEach((c) => liveSeated.add(c));
+  distantPlacements.forEach((p, i) => midLive.has(p) && liveSeated.add(distantBases[i]));
   let maxBaseGap = 0;
   for (const b of allBases) maxBaseGap = Math.max(maxBaseGap, Math.abs(b[1] - (liveSeated.has(b) ? liveTerrain : terrain).height(b[0], b[2])));
   const sampleBases = (() => {
@@ -3203,6 +4947,10 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
     instances: number;
     calls: number;
     triangles: number;
+    colourCalls: number;
+    depthCalls: number;
+    colourTriangles: number;
+    depthTriangles: number;
   }
   const submission = () => {
     const cam = ctx.camera;
@@ -3213,53 +4961,280 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
       const sc = ctx.sun.shadow.camera;
       shadow = new Frustum().setFromProjectionMatrix(new Matrix4().multiplyMatrices(sc.projectionMatrix, sc.matrixWorldInverse));
     }
-    const tally = (): SubmissionTally => ({ meshes: 0, instances: 0, calls: 0, triangles: 0 });
+    const tally = (): SubmissionTally => ({ meshes: 0, instances: 0, calls: 0, triangles: 0, colourCalls: 0, depthCalls: 0, colourTriangles: 0, depthTriangles: 0 });
     const s = new Sphere();
+    const lobe = new Sphere();
+    const lobeMatrix = new Matrix4();
+    /** meshes three never frustum-tests (`frustumCulled === false`, the BatchedMesh pattern) */
+    let cullExempt = 0;
+    /** meshes whose colour pass is skipped by a main-pass count of 0 (`proxydraw/`) */
+    let mainZero = 0;
+    /** the upper bound: every visible mesh in colour, every caster in depth, no frustum test anywhere */
+    let noCullCalls = 0;
+    /**
+     * The triangles `perObjectFrustumCulled` takes off the batches, per pass they are drawn in. Three gives
+     * `BatchedMesh` no `onBeforeShadow`, so the depth pass reuses whatever set the last colour pass left —
+     * this is the number to check a residual against before believing that assumption.
+     */
+    let batchCulledTris = 0;
+    /** the same, split by pass: the depth half is what the "depth reuses the colour set" model would owe */
+    let batchCulledTrisColour = 0;
+    let batchCulledTrisDepth = 0;
+    /** surviving batch lobes with no index buffer, whose size `indexCount` reports as −1 */
+    let nonIndexedLobes = 0;
+    /**
+     * Two candidate depth models, reported beside the one in use. `?shadow=0` localised the whole residual
+     * against `isolate('trees')` to the DEPTH pass — with the sun not casting the colour pass agrees to the
+     * triangle at `stairs1-top` and to 204 in 1.38 M at hero A — so one of these is the next thing to test:
+     *   `depthTrisBatchFull`  every batch lobe in depth, not just the ones the camera cull left
+     *   `depthTrisNoFrustum`  every caster in depth with no shadow-frustum test at all, and its call count
+     */
+    let depthTrisBatchFull = 0;
+    let depthTrisNoFrustum = 0;
+    let depthCallsNoFrustum = 0;
     const add = (into: SubmissionTally, mesh: Mesh | InstancedMesh) => {
+      const batched = (mesh as unknown as BatchedMesh).isBatchedMesh ? (mesh as unknown as BatchedMesh) : null;
       const inst = (mesh as InstancedMesh).isInstancedMesh ? (mesh as InstancedMesh).count : 1;
       if (!mesh.visible || inst === 0) return;
-      const bs = (mesh as InstancedMesh).isInstancedMesh ? (mesh as InstancedMesh).boundingSphere : mesh.geometry.boundingSphere;
-      if (!bs) return;
-      s.copy(bs).applyMatrix4(mesh.matrixWorld);
       const g = mesh.geometry;
-      const tris = Math.floor((g.index ? g.index.count : g.attributes.position.count) / 3) * inst;
-      const colour = view.intersectsSphere(s) ? 1 : 0;
-      const depth = mesh.castShadow && shadow && shadow.intersectsSphere(s) ? 1 : 0;
+      const indexCount = g.index ? g.index.count : g.attributes.position.count;
+      /**
+       * One draw per VISIBLE material group, in BOTH passes, each over that group's own range — three's
+       * render list and `WebGLShadowMap.renderObject` agree on this. `distant.ts` gives its near and far
+       * meshes two groups (wood, then foliage) and `writeRanges` adds one per range, so a tally of one
+       * call per mesh reports roughly half of what the renderer makes for those families. A single
+       * material that is not visible, or an array with no visible group, is drawn in neither pass.
+       */
+      const matArray = Array.isArray(mesh.material) ? (mesh.material as Material[]) : null;
+      const drawGroups = matArray ? g.groups.filter((gr) => matArray[gr.materialIndex ?? 0]?.visible) : (mesh.material as Material).visible ? null : [];
+      if (drawGroups && drawGroups.length === 0) return;
+      const passCalls = drawGroups ? drawGroups.length : 1;
+      const perInstance = drawGroups
+        ? drawGroups.reduce((n, gr) => n + Math.floor(Math.min(gr.count, Math.max(0, indexCount - gr.start)) / 3), 0)
+        : Math.floor(indexCount / 3);
+      /**
+       * The count in effect during the COLOUR pass. `installMainPassCount` swaps it in `onBeforeRender`
+       * and back in `onAfterRender`, so a bucket's shadow-only instances draw in depth and not in colour,
+       * and the white-bark shadow proxies draw in neither (`proxydraw/`).
+       */
+      const mainCount = (mesh.userData[MAIN_COUNT] as number | undefined) ?? inst;
+      if (mainCount === 0) mainZero++;
+      if (!mesh.frustumCulled) cullExempt++;
+      noCullCalls += passCalls * ((mainCount > 0 ? 1 : 0) + (mesh.castShadow && shadow ? 1 : 0));
+      const bs = batched ? batched.boundingSphere : (mesh as InstancedMesh).isInstancedMesh ? (mesh as InstancedMesh).boundingSphere : mesh.geometry.boundingSphere;
+      // `frustumCulled === false` means three submits the object whatever the frustum says — those draws
+      // are not optional and a tally that frustum-tests them reports fewer than the renderer makes. With
+      // no bounds at all three cannot cull either.
+      const inView = !mesh.frustumCulled || !bs || (s.copy(bs).applyMatrix4(mesh.matrixWorld), view.intersectsSphere(s));
+      const inShadow = shadow !== null && (!mesh.frustumCulled || !bs || (s.copy(bs).applyMatrix4(mesh.matrixWorld), shadow.intersectsSphere(s)));
+      let colour = 0;
+      let depth = 0;
+      let colourTris = 0;
+      let depthTris = 0;
+      if (batched) {
+        /**
+         * A batch is one multi-draw call over the lobes that survive `perObjectFrustumCulled`, which
+         * `BatchedMesh.onBeforeRender` applies per instance against the CAMERA's frustum — so summing
+         * every visible range overstates it by whatever is off-screen, and `WebGLBufferRenderer
+         * .renderMultiDraw` returns before `info.render` when nothing survives. The shadow pass reuses
+         * the set that left behind (three gives `BatchedMesh` no `onBeforeShadow`), so both passes draw
+         * the same ranges.
+         */
+        let drawn = 0;
+        let culledTris = 0;
+        /** the lobes that survived, before either pass's gate decides whether the batch is submitted */
+        let surviving = 0;
+        for (let i = 0; i < batched.maxInstanceCount; i++) {
+          // a pooled batch's deleted slots throw on lookup; they hold nothing
+          try {
+            if (!batched.getVisibleAt(i)) continue;
+          } catch {
+            continue;
+          }
+          const geometryId = batched.getGeometryIdAt(i);
+          /**
+           * `geometryInfo.count` is exactly what the multi-draw submits for this part, and
+           * `renderMultiDraw` sums those counts into `info.render.triangles`:
+           * `BatchedMesh.addGeometry` sets it to `indexCount` for an indexed part and to `vertexCount`
+           * for one without an index — where `indexCount` is left at its initial **−1**. Reading
+           * `indexCount` therefore charged a non-indexed lobe `floor(-1/3) = -1` triangle instead of its
+           * real size, taking triangles OFF the total.
+           */
+          const range = batched.getGeometryRangeAt(geometryId);
+          if ((range?.indexCount ?? 0) < 0) nonIndexedLobes++;
+          const lobeTris = Math.floor(Math.max(0, range?.count ?? 0) / 3);
+          if (batched.perObjectFrustumCulled) {
+            batched.getBoundingSphereAt(geometryId, lobe);
+            batched.getMatrixAt(i, lobeMatrix);
+            lobe.applyMatrix4(lobeMatrix).applyMatrix4(mesh.matrixWorld);
+            if (!view.intersectsSphere(lobe)) {
+              culledTris += lobeTris;
+              continue;
+            }
+          }
+          drawn++;
+          surviving += lobeTris;
+        }
+        colour = inView && drawn > 0 ? 1 : 0;
+        colourTris = colour ? surviving : 0;
+        /**
+         * A batch that records its own depth submission (`FarFoliageBatch.onBeforeShadow`) knows what it
+         * drew and this tally cannot work it out: that hook rebuilds the multi-draw set from the lobes'
+         * shadow spheres against the SHADOW camera. Trust the batch over the colour-set assumption.
+         */
+        const recordedTris = mesh.userData.shadowTriangles as number | undefined;
+        const recordedDraws = mesh.userData.shadowDraws as number | undefined;
+        if (recordedTris !== undefined && recordedDraws !== undefined) {
+          depth = mesh.castShadow ? recordedDraws : 0;
+          depthTris = depth ? recordedTris : 0;
+        } else {
+          depth = mesh.castShadow && inShadow && drawn > 0 ? 1 : 0;
+          depthTris = depth ? surviving : 0;
+        }
+        batchCulledTris += culledTris * (colour + depth);
+        batchCulledTrisColour += culledTris * colour;
+        batchCulledTrisDepth += culledTris * depth;
+        depthTrisBatchFull += depth ? surviving + culledTris : 0;
+        depthTrisNoFrustum += mesh.castShadow && shadow ? surviving : 0;
+        depthCallsNoFrustum += mesh.castShadow && shadow ? 1 : 0;
+      } else {
+        colour = inView && mainCount > 0 ? passCalls : 0;
+        colourTris = colour ? perInstance * mainCount : 0;
+        // the shadow pass runs first, before `onBeforeRender` swaps the count down, so it draws them all
+        depth = mesh.castShadow && inShadow ? passCalls : 0;
+        depthTris = depth ? perInstance * inst : 0;
+        depthTrisBatchFull += depthTris;
+        depthTrisNoFrustum += mesh.castShadow && shadow ? perInstance * inst : 0;
+        depthCallsNoFrustum += mesh.castShadow && shadow ? passCalls : 0;
+      }
       into.meshes++;
       into.instances += inst;
+      into.colourCalls += colour;
+      into.depthCalls += depth;
       into.calls += colour + depth;
-      into.triangles += tris * (colour + depth);
+      into.colourTriangles += colourTris;
+      into.depthTriangles += depthTris;
+      into.triangles += colourTris + depthTris;
+    };
+    /** every mesh a named family tallied, so the scene-graph walk below can name what no family claimed */
+    const tallied = new Set<Object3D>();
+    const claim = (into: SubmissionTally, mesh: Mesh | InstancedMesh) => {
+      tallied.add(mesh);
+      add(into, mesh);
     };
     const byFamily: Record<string, SubmissionTally> = {};
     const family = (key: string) => (byFamily[key] ??= tally());
-    for (const w of whites) w.meshes.forEach((m, l) => add(family(`whitebark-lod${l}`), m));
-    for (const c of seatedColumns) c.meshes.forEach((m, l) => add(family(`column-lod${l}`), m));
-    sectorMeshes.forEach((m) => add(family(m.userData.kind === 'giant' ? 'giant-wood' : m.userData.kind === 'giant-authored-leaves' || m.userData.kind === 'giant-authored-cards' ? m.userData.kind : 'giant-cards'), m));
+    for (const w of whites) w.meshes.forEach((m, l) => claim(family(`whitebark-lod${l}`), m));
+    for (const c of seatedColumns) c.meshes.forEach((m, l) => claim(family(`column-lod${l}`), m));
+    // the third `bucketFamily` family, and the third the rung band covers (lodFade.ts). It was missing
+    // from this tally until 2026-09-30, and since `total` below is the SUM of byFamily, every
+    // `submission.drawCalls` / `submission.triangles` this system reported was short by the understory's
+    // share — 10 draws and 63 638 triangles of it at plateau-back by `outlook/`'s family probe. The
+    // `unaccounted` field below exists so that omitting a family again is a number rather than a silence.
+    for (const u of understory) u.meshes.forEach((m, l) => claim(family(`understory-lod${l}`), m));
+    // two more the walk below caught: the roots mesh every white-bark variant shares, and round 53's
+    // per-variant depth proxies for the high bucket. Both submit real work — the proxies are a depth call
+    // each — and neither had a family.
+    claim(family('whitebark-roots'), whiteBarkRoots);
+    for (const w of whites) if (w.shadowProxy) claim(family('whitebark-shadow'), w.shadowProxy);
+    sectorMeshes.forEach((m) => claim(family(m.userData.kind === 'giant' ? 'giant-wood' : m.userData.kind === 'giant-authored-leaves' || m.userData.kind === 'giant-authored-cards' ? m.userData.kind : 'giant-cards'), m));
     for (const d of distantSets) {
-      add(family('distant-near'), d.near);
-      add(family('distant-far'), d.far);
+      const layer = d.variant.kind === 'mid' ? 'mid' : 'distant';
+      claim(family(`${layer}-near`), d.near);
+      claim(family(`${layer}-far`), d.far);
     }
-    for (const nb of nearBoles) add(family(nb.mesh.userData.kind as string), nb.mesh);
-    for (const nc of nearCanopies) add(family(`${nc.mesh.userData.kind as string}-${nc.kind}`), nc.mesh);
-    if (detachedGroup.visible) for (const m of detachedMeshes) add(family(m.userData.kind as string), m);
+    for (const nb of nearBoles) claim(family(nb.mesh.userData.kind as string), nb.mesh);
+    for (const nc of nearCanopies) if (nc.mesh) claim(family(`${nc.mesh.userData.kind as string}-${nc.kind}`), nc.mesh);
+    if (nearCanopyBatch) claim(family('giant-near-canopy-batch'), nearCanopyBatch.mesh);
+    if (columnNearCanopyBatch) claim(family('column-near-canopy-batch'), columnNearCanopyBatch.mesh);
+    for (const batch of farFoliage) claim(family('giant-far-foliage-batch'), batch.mesh);
+    if (detachedGroup.visible) for (const m of detachedMeshes) claim(family(m.userData.kind as string), m);
     const total = tally();
-    for (const t of Object.values(byFamily)) {
-      total.meshes += t.meshes;
-      total.instances += t.instances;
-      total.calls += t.calls;
-      total.triangles += t.triangles;
-    }
+    // summed over the tally's own keys rather than a hand-written list of four: the field-by-field version
+    // silently dropped `colourCalls` and `depthCalls` the hour they were added, which is the same way
+    // `byFamily` came to be missing three whole families (`auditgap/`)
+    for (const t of Object.values(byFamily)) for (const k of Object.keys(total) as (keyof SubmissionTally)[]) total[k] += t[k];
+    /**
+     * The same tally taken from the SCENE GRAPH instead of from a hand-written list of families, so that a
+     * family nobody remembered to add shows up as a difference rather than as a quietly low total.
+     *
+     * `total` above is the sum of `byFamily`, and `byFamily` is eleven explicit loops over the collections
+     * this file happens to hold. The understory was absent from those loops from the day it was added until
+     * 2026-09-30, so `submission.triangles` under-reported the trees for weeks and nothing said so — the
+     * whole-frame numbers were never affected (those come from the renderer's own info), but this system's
+     * own row was. Walking the group cannot forget a family.
+     *
+     * `unaccounted` should be zero. If it is not, `byFamily` is missing something, and the gauntlet's B3
+     * check ("audit claims cross-checked against the scene graph") has a number to fail on.
+     */
+    // `add` runs once per mesh for the families and again for the walk below, so the three diagnostic
+    // counters have to be read here or they come out doubled
+    const cullExemptOnce = cullExempt;
+    const mainZeroOnce = mainZero;
+    const noCullCallsOnce = noCullCalls;
+    const batchCulledTrisOnce = batchCulledTris;
+    const batchCulledColourOnce = batchCulledTrisColour;
+    const batchCulledDepthOnce = batchCulledTrisDepth;
+    const nonIndexedLobesOnce = nonIndexedLobes;
+    const depthTrisBatchFullOnce = depthTrisBatchFull;
+    const depthTrisNoFrustumOnce = depthTrisNoFrustum;
+    const depthCallsNoFrustumOnce = depthCallsNoFrustum;
+    const walked = tally();
+    const unclaimed: string[] = [];
+    // traverseVisible, not traverse: `add` tests the mesh's OWN `visible` flag, so a plain traverse counts
+    // meshes inside a hidden parent that the renderer never draws. The detached boughs live under a group
+    // the locality gate hides, and the first version of this check reported all three as unaccounted.
+    group.traverseVisible((o) => {
+      const m = o as Mesh | InstancedMesh;
+      if (!(m as Mesh).isMesh) return;
+      const before = walked.meshes;
+      add(walked, m);
+      // `meshes` is the signal, not `calls`: a mesh outside both frustums counts zero calls but is counted
+      if (walked.meshes !== before && !tallied.has(m)) unclaimed.push(m.name || (m.userData.kind as string) || m.type);
+    });
+    const unaccounted = {
+      meshes: walked.meshes - total.meshes,
+      instances: walked.instances - total.instances,
+      calls: walked.calls - total.calls,
+      triangles: walked.triangles - total.triangles,
+      /** which meshes no family claimed, by name — so the fix is a lookup rather than a hunt */
+      names: [...new Set(unclaimed)].sort(),
+    };
     return {
       drawCalls: total.calls,
       triangles: total.triangles,
       meshes: total.meshes,
       instances: total.instances,
+      /** the two passes apart, so a disagreement with `isolate('trees')` can be attributed */
+      colourCalls: total.colourCalls,
+      depthCalls: total.depthCalls,
+      /** meshes three never frustum-tests, and meshes whose colour pass a 0 main count skips */
+      cullExempt: cullExemptOnce,
+      mainZero: mainZeroOnce,
+      /** what it would be with no frustum test anywhere: the ceiling the two passes are measured against */
+      noCullCalls: noCullCallsOnce,
+      /** what per-lobe culling took off the batches, per pass — the first thing a triangle residual can be */
+      batchCulledTris: batchCulledTrisOnce,
+      batchCulledTrisColour: batchCulledColourOnce,
+      batchCulledTrisDepth: batchCulledDepthOnce,
+      nonIndexedLobes: nonIndexedLobesOnce,
+      depthTrisBatchFull: depthTrisBatchFullOnce,
+      depthTrisNoFrustum: depthTrisNoFrustumOnce,
+      depthCallsNoFrustum: depthCallsNoFrustumOnce,
       byFamily,
+      /** zero when `byFamily` accounts for every visible mesh under the trees group; see above */
+      unaccounted,
       /** bucket sizes → submitted after culling, per LOD */
       whiteBarkLodSubmitted: [0, 1, 2].map((l) => whites.reduce((n, w) => n + w.submitted[l].length, 0)),
       columnLodSubmitted: [0, 1, 2].map((l) => seatedColumns.reduce((n, c) => n + c.submitted[l].length, 0)),
+      understoryLodSubmitted: [0, 1, 2].map((l) => understory.reduce((n, u) => n + u.submitted[l].length, 0)),
       distantSubmitted: [0, 1].map((l) => distantSets.reduce((n, d) => n + d.submitted[l].length, 0)),
       giantSectorsCasting: sectorMeshes.filter((m) => m.castShadow).length,
+      /** of the sectors' per-giant groups, how many the last depth pass drew (the rest: shade outside the frame) */
+      giantGroupsCasting: groupMeshes.reduce((n, m) => n + ((m.userData.groupCasts as boolean[] | undefined)?.filter((c, i) => c && m.castShadow && (m.userData.groupCasts as boolean[]).length > i).length ?? 0), 0),
+      giantGroupsTotal: groupMeshes.reduce((n, m) => n + ((m.userData.groupCasts as boolean[] | undefined)?.length ?? 0), 0),
+      /** of the pooled near bases shown, how many cast: the rest's shade never enters the frame */
+      nearBolesCasting: nearBoles.filter((nb) => nb.mesh.visible && nb.mesh.castShadow).length,
       /**
        * round 50 (trees-32): the detached boughs (DETACHED_BOUGHS) — per giant, their geometry and
        * lobes as built (world centres), whether the gate shows them for the current camera, and
@@ -3320,6 +5295,7 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
       distantFarCount += s.counts[1];
       distantTriangles += s.counts[0] * s.variant.nearTriangles + s.counts[1] * s.variant.farTriangles;
     }
+    const barkWindow = distantBarkWindow();
     const canopyPool = nearCanopyPool.report();
     return {
       geometry: 'procedural-v1',
@@ -3327,9 +5303,45 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
       giantRoots: giantRootsMin >= 5,
       giantRootsMin,
       giantLimbsMin,
+      /** see distantBarkWindow(): what a one-material swap on the distant / mid meshes is worth at this pose */
+      barkWindow,
       /** per giant, its un-authored big limbs' azimuths (0° = +x, 90° = +z); 'g' = ghosted (GiantProfile.wildLimbGhost) */
       giantWildLimbs: Object.fromEntries(giants.map((g) => [g.def.id, g.asset.wildLimbs.map((l) => `${l.azimuthDeg}${l.ghost ? 'g' : ''}`)])),
       giantLeaves,
+      /**
+       * Wall-clock ms per build phase (the `ctx.progress` checkpoints): white-barks, understory, columns,
+       * giants, then the distant / mid layers with the pools and the publish. `buildMs.trees` in
+       * `__ZR__.perf()` is their sum, and this says which of them a load pass should attack.
+       */
+      buildPhases: { ...buildPhases },
+      /** per giant id, its own build in ms, heaviest first — which of the twelve the giants' phase is */
+      giantBuildMs: Object.fromEntries(Object.entries(giantBuildMs).sort((a, b) => b[1] - a[1])),
+      /** the giants' loop outside `createGiantTree`: to-world translation, pool registration, the sector merge */
+      giantStepMs: { ...giantStepMs },
+      /**
+       * Where a giant's WOOD triangles are, one row per giant, heaviest first — the question the
+       * family total (`submission.byFamily['giant-wood']`, 1.51 M) cannot answer and the reason a rung
+       * for it could not be designed (art/environment/squad2-2026-09-23/giantwood/CORRECTION.md).
+       *
+       *   [id, wood triangles, of them the relief bole, of them the authored boughs' dressing,
+       *    the rest (plain sweep, wild limbs, buttress roots), the tree's LEAF triangles in the same
+       *    mesh, the nearest hero camera holding it in its forward cone (m, null when none does —
+       *    that is what gates the relief bole)]
+       *
+       * The leaf column matters: a giant's laminae share the geometry its wood is in (the sector mesh
+       * is grouped 1 wood + GIANT_LEAF_BANDS leaf bands per giant), so the family the audit calls
+       * `giant-wood` is wood AND leaves. Measured on the head, the wood is a sixth of it.
+       *
+       * The near base is NOT in these totals: it is pooled and drawn only inside NEAR_BASE_IN_M
+       * (`nearBase.boles` has its own per-bole rows).
+       */
+      giantWoodByTree: [...giants]
+        .map((g) => {
+          const bark = g.asset.bark?.triangles ?? 0;
+          const boughs = g.asset.boughDress.reduce((n, b) => n + b.triangles, 0);
+          return [g.def.id, g.asset.woodTriangles, bark, boughs, g.asset.woodTriangles - bark - boughs, g.asset.leafTriangles, Number.isFinite(g.heroDistance) ? Math.round(g.heroDistance * 10) / 10 : null] as [string, number, number, number, number, number, number | null];
+        })
+        .sort((a, b) => b[1] - a[1]),
       /** of `giantLeaves`, the authored canopy-bough lobes' laminae, drawn from their own non-casting mesh */
       giantAuthoredLeaves,
       giantAuthoredLeavesCast: sectorMeshes.some((m) => m.userData.kind === 'giant-authored-leaves' && m.castShadow),
@@ -3347,7 +5359,7 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
       /** round 45 (item 5): a cluster card's coverage by |cos(normal, view ray)| — [gone at, full from] for the ordinary and the flat-shaded cards (materials.ts CARD_EDGE_FADE) */
       cardEdgeFade: { cards: CARD_EDGE_FADE, flat: CARD_FLAT_EDGE_FADE },
       /** the giants' geometries: sectors, authored leaves / cards, plus their pooled near bases and near-canopy parts */
-      giantMeshes: sectorGeometries.length + giants.reduce((n, g) => n + (g.asset.nearBase ? 1 : 0) + g.asset.nearCanopy.length, 0),
+      giantMeshes: sectorGeometries.length + farFoliage.length + giants.reduce((n, g) => n + (g.asset.nearBase ? 1 : 0) + g.asset.nearCanopy.length, 0),
       giantCrownRadii: giants.map((g) => Math.round(g.asset.crownRadius * 10) / 10),
       /**
        * near-bole bark (bole.ts) per giant within NEAR_BOLE_M of a hero camera:
@@ -3368,6 +5380,8 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
         }),
       whiteBarkVariants: whites.length,
       whiteBarkInstances: whitePlacements.length,
+      understoryInstances: understoryPlacements.length,
+      understoryLodInstances: [0, 1, 2].map((l) => understory.reduce((n, u) => n + u.counts[l], 0)),
       /**
        * round 50 (trees-32): every SAMPLED white-bark placement as drawn ([x, z] cm, the swapped-to-column
        * ones included) — the stream every fixed frame was tuned against. A placement-rule change is
@@ -3383,6 +5397,11 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
       whiteBarkReseated: whitePlaced.reseated,
       whiteBarkAges: whites.map((w) => w.params.age),
       whiteBarkLodInstances: lodInstances,
+      /**
+       * Mean per-instance triangles of each rung [high, medium, low], so the cost of moving a rung is
+       * arithmetic rather than a guess: the ladder's steps are what a walker sees change (`lodSwapM`).
+       */
+      whiteBarkLodTriangles: [0, 1, 2].map((l) => Math.round(whites.reduce((n, w) => n + w.lods[l].woodTriangles + w.lods[l].leafTriangles, 0) / Math.max(1, whites.length))),
       /** mature white-barks built as dark columns because their bole stood in a hero far wall */
       whiteBarkSwappedToColumns: swappedWhites.length,
       /** column trees (column.ts): the dark boles of the mid-distance forest wall */
@@ -3408,6 +5427,8 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
           height: Math.round((seatedColumns.find((c) => c.placements[0] === p)?.params.height ?? 0) * 10) / 10,
         })),
       columnLodInstances,
+      /** the same per-rung cost for the seated columns (one family per seat, so this is the mean seat) */
+      columnLodTriangles: [0, 1, 2].map((l) => Math.round(seatedColumns.reduce((n, c) => n + c.lods[l].woodTriangles + c.lods[l].leafTriangles, 0) / Math.max(1, seatedColumns.length))),
       columnLeafCount: columnLeaves,
       leafGeometry: 'laminae',
       leafCount: leafCount + columnLeaves + giantLeaves,
@@ -3416,19 +5437,55 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
       /** round 45: instances slid off the path's sight line / dropped from the arch's footprint, and the spine clearance (m) */
       distantClearance: { ...distantCleared, spine: DISTANT_SPINE_CLEARANCE, minSpineDistance: Math.round(Math.min(...distantPlacements.map((p) => spineDistance(spineXZ, p.x, p.z))) * 100) / 100 },
       distantLod: [distantNearCount, distantFarCount],
+      /** the CPU arrays the trees still hold (bytes; by the system's groups) — see cpuArrayBytes */
+      cpuArrays: cpuArrayBytes(group),
+      /**
+       * 2026-09-23 (lane 2, the owner's "the trees do not populate"): the mid-canopy grove in the
+       * 14–58 m band — how many were placed (and how many the expansion's ground culled), the
+       * variants' unscaled heights, the crown geometry as shares of the height, the LOD swap and the
+       * nearest / farthest bole from the clearing's centre.
+       */
+      midCanopy: {
+        trees: midPlacements.length,
+        culled: midSampled.length - midPlacements.length,
+        heights: MID_HEIGHTS,
+        crown: MID_SPECS.map((s) => [s.height, s.crownR, s.crownY]),
+        trunkRadius: MID_TRUNK_R,
+        band: midPlacements.length ? [Math.round(Math.min(...midPlacements.map((p) => Math.hypot(p.x, p.z))) * 10) / 10, Math.round(Math.max(...midPlacements.map((p) => Math.hypot(p.x, p.z))) * 10) / 10] : [0, 0],
+        /** every bole as [x, z, variant] (dm): a review can pose a camera at one, and a diff names what moved */
+        seats: midPlacements.map((p) => [Math.round(p.x * 10) / 10, Math.round(p.z * 10) / 10, p.variant - (distantVariants.length - MID_SPECS.length)]),
+        farLodM: MID_FAR_LOD_M,
+        material: midCrown.name,
+      },
+      /**
+       * 2026-09-24 (expansion-north): the 60–215 m layer's trees the grove dropped ([x, z] dm), how many
+       * of its box it re-seated on the live ground, its understory stems and how many of them are in
+       * the LOD buckets at the audit's pose (none unless the camera is near the grove)
+       */
+      northGrove: { ...northGrove, understoryBucketed: understory.reduce((n, u) => n + u.lists.reduce((m, list) => m + list.filter((i) => u.placements[i].grove).length, 0), 0) },
       /** round 45: the near LOD bole's basal flare [share at the foot, e-folding m] and the near-bark tone [overall, band amplitude, grime at the foot] (distant.ts, materials.ts DISTANT_NEAR_TONE) */
       distantNearBark: { flare: [DISTANT_FLARE, DISTANT_FLARE_FALL], tone: DISTANT_NEAR_TONE, withinM: DISTANT_BARK_M, limbReach: LIMB_REACH, limbTint: [LIMB_TIP_TINT, LIMB_TINT_FROM, LIMB_TINT_TO] },
       /** round 46: the near LOD bole's geometric cords [furrows around a broad / a slender, depth share], sides [broad, slender], the furrow floor's vertex shade, the root buttresses' arc sides (distant.ts) */
       distantNearRelief: { cords: DISTANT_CORDS, sides: DISTANT_SIDES, furrowShade: DISTANT_FURROW_SHADE, footGrime: DISTANT_FOOT_GRIME, rootArc: DISTANT_ROOT_ARC, nearGain: DISTANT_NEAR_GAIN, floor: [DISTANT_NEAR_FLOOR.lift, DISTANT_NEAR_FLOOR.texture] },
       /** round 47: the crown cards [near, far] and lobe pairs per tree, card half-size (crown radii), the crown material's sphere mix / core dark / rim / alpha test / jitter, the bole's crown-top darkening and tone bands, the depth cool (distant.ts) */
       distantCrown: { cards: FAR_CROWN_CARDS, lobes: FAR_CROWN_LOBES, cardHalf: FAR_CROWN_CARD_HALF, sphereMix: CROWN_SPHERE_MIX, coreDark: CROWN_CORE_DARK, rim: CROWN_RIM, alphaTest: CROWN_ALPHA_TEST, jitter: CROWN_JITTER, crownTop: DISTANT_CROWN_TOP, boleBands: DISTANT_BOLE_BANDS, depthCool: DISTANT_DEPTH_COOL, material: distantCrown.name || 'distant-crown' },
-      distantClose: { slots: DISTANT_CLOSE_SLOTS, active: distantCloseSlots.length, fadeM: DISTANT_CLOSE_FADE_M, prefetchM: DISTANT_CLOSE_PREFETCH_M,
-        triangleCeiling: DISTANT_CLOSE_SLOTS * DISTANT_CLOSE_TRIANGLES, triangles: distantSets.reduce((n, s) => n + s.close.mesh.count * s.close.triangles, 0),
-        draws: distantSets.filter(s => s.close.mesh.count > 0).length, sharedBytes: distantSets.reduce((n, s) => n + s.close.item.bytes, 0),
-        weights: distantCloseSlots.map(s => [s.id, s.weight]), fallback: 'Existing crown geometry retained for every tree without close detail.' },
       /** round 45: a giant lobe's fine wood reach [secondaries, twigs] as shares of hR and its outer tint toward the leaf tone (giant.ts LOBE_*) */
       lobeWood: { secondaryReach: LOBE_SECONDARY_REACH, twigReach: LOBE_TWIG_REACH, tint: LOBE_TWIG_TINT },
       lodLevels: 3,
+      /**
+       * The instanced ladders' swap distances as this build resolved them (m, quality and the
+       * `?treelod=` dev multiplier already applied): the white-barks' / columns' high→medium→low
+       * rungs, the distant layer's near gate, the mid grove's and the north stand's own gates.
+       */
+      lodSwapM: { tree: lodDist, distant: distantNear, mid: Math.min(distantNear, MID_FAR_LOD_M * ctx.quality.distance * TREE_LOD_SCALE[2]), scale: TREE_LOD_SCALE },
+      /**
+       * The rung transition band (lodFade.ts): whether a tree within half a band of one of
+       * `lodSwapM.tree`'s gates is drawn in BOTH rungs at complementary screen-door weights, and how
+       * wide that band is. It covers the three `bucketFamily` families only — the white-barks, the
+       * seated columns and the understory — not the distant or mid layers' own gates, not the giants
+       * and not the near-canopy pool, each of which swaps by a different rule.
+       */
+      lodBand: { on: TREE_LOD_DITHER && lodBandM > 0, bandM: lodBandM, gateGapM: Number((lodDist[1] - lodDist[0]).toFixed(2)), families: ['whites', 'seatedColumns', 'understory'] },
       windLayers: mats.windLayers,
       barkTextures: mats.barkTextureSets,
       /**
@@ -3511,8 +5568,8 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
        */
       nearCanopy: {
         /** the parts' built radii (nearCanopy.ts) and the tier's cap on them as drawn (NEAR_LOD_TIERS.canopySwapM) */
-        inM: Math.min(NEAR_CANOPY_IN_M, NEAR_LOD_TIER.canopySwapM[0]),
-        outM: Math.min(NEAR_CANOPY_OUT_M, NEAR_LOD_TIER.canopySwapM[1]),
+        inM: Math.min(NEAR_CANOPY_IN_M, NEAR_LOD_TIER.canopySwapM[0]) * TREE_LOD_SCALE[3],
+        outM: Math.min(NEAR_CANOPY_OUT_M, NEAR_LOD_TIER.canopySwapM[1]) * TREE_LOD_SCALE[3],
         builtInM: NEAR_CANOPY_IN_M,
         builtOutM: NEAR_CANOPY_OUT_M,
         heroMargin: 0,
@@ -3522,6 +5579,40 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
         distanceTo: 'crown-envelope',
         slots: NEAR_CANOPY_SLOTS,
         limbsMax: NEAR_CANOPY_LIMBS_MAX,
+        /**
+         * Where the tier's slots actually land, for the camera the last frame drew: of the parts it
+         * shows, how many are inside the frustum, and how many parts are inside their swap band AND
+         * inside the frame but hold no slot because the nearest `slots` filled up first. The tier
+         * ranks by distance and the plaza's authored boughs surround the camera, so most of what it
+         * shows is behind or above the frame: measured at camera A, 10 of 79 shown are in view and
+         * 21 in-view parts (nearest 15.6 m) keep their far foliage
+         * (art/environment/squad2-2026-09-23/slots). Aiming the same slots at the frame is a look
+         * call with a price — those 21 parts are ≈ 37 K triangles each as drawn — so this reports
+         * the state rather than changing it.
+         */
+        slotsInFrame: (() => {
+          const cam = ctx.camera;
+          cam.updateMatrixWorld();
+          const f = new Frustum().setFromProjectionMatrix(new Matrix4().multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse));
+          const sp = new Sphere();
+          let shown = 0;
+          let inView = 0;
+          let starved = 0;
+          let starvedNearestM = Infinity;
+          for (const nc of nearCanopies) {
+            sp.center.copy(nc.center);
+            sp.radius = nc.radius;
+            const seen = f.intersectsSphere(sp);
+            if (nc.shown) {
+              shown++;
+              if (seen) inView++;
+            } else if (nc.active && seen) {
+              starved++;
+              starvedNearestM = Math.min(starvedNearestM, nc.dist);
+            }
+          }
+          return { shown, inView, starved, starvedNearestM: Number.isFinite(starvedNearestM) ? Math.round(starvedNearestM * 10) / 10 : null };
+        })(),
         leafFloor: [NEAR_CANOPY_LEAF_FLOOR.lift, NEAR_CANOPY_LEAF_FLOOR.texture],
         leafNearM: NEAR_CANOPY_LEAF_NEAR_M,
         sunThrough: NEAR_CANOPY_SUN_THROUGH,
@@ -3533,8 +5624,19 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
         builtTriangles: nearCanopies.reduce((n, nc) => n + nc.triangles, 0),
         residentTriangles: nearCanopies.reduce((n, nc) => n + (nearCanopyPool.isResident(nc.item) ? nc.triangles : 0), 0),
         /** vertices and buffer bytes (position, colour, uv, wind, root, normal + the index) of the parts in the pool now */
-        residentVertices: nearCanopies.reduce((n, nc) => n + (nearCanopyPool.isResident(nc.item) ? nc.mesh.geometry.getAttribute('position').count : 0), 0),
+        residentVertices: nearCanopies.reduce((n, nc) => n + (nearCanopyPool.isResident(nc.item) ? (nc.mesh ? nc.mesh.geometry.getAttribute('position').count : nc.vertices) : 0), 0),
         residentBytes: nearCanopyPool.poolBytes,
+        /** round 54: the giants' parts' batch and the seated columns' — their instances and the buffers they hold (reserved, in vertices / indices) with the heap those buffers take */
+        batch: nearCanopyBatch ? { ...nearCanopyBatch.stats, heapBytes: nearCanopyBatch.heapBytes } : null,
+        columnBatch: columnNearCanopyBatch ? { ...columnNearCanopyBatch.stats, heapBytes: columnNearCanopyBatch.heapBytes } : null,
+        /**
+         * round 54: the giants' tagged far laminae (FarFoliageBatch), one batch per sector — instances (one
+         * per giant lobe group), vertices / indices, the sector's layout (colours / wind narrow or Float32),
+         * the instances the colour pass leaves out this frame and their triangles (what the fold used to
+         * submit), the CPU arrays still held (the index), whether the batch casts this frame and, of its
+         * instances, how many the last depth pass drew (those whose shadow sweep meets the frame) and their triangles
+         */
+        farBatches: farFoliage.map((b) => ({ name: b.mesh.name, instances: b.instances, vertices: b.vertices, indices: b.indices, layout: b.layout, folded: b.folded, foldedTriangles: b.foldedTriangles, heapBytes: b.heapBytes, casting: b.mesh.castShadow, castingInstances: b.casting, castingTriangles: b.castingTriangles })),
         /** Measured bytes after a first build; deferred records retain conservative estimates. */
         builtBytes: nearCanopies.reduce((n, nc) => n + (nc.triangles ? nc.item.bytes : 0), 0),
         estimatedUnbuiltBytes: nearCanopies.reduce((n, nc) => n + (nc.triangles ? 0 : nc.item.bytes), 0),
@@ -3560,13 +5662,38 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
             const sum = (f: (p: NearCanopyPart) => number) => a.nearCanopy.reduce((n, p) => n + f(p), 0);
             return [c.placements[0].id, a.nearCanopy.length, a.nearCanopyHeroKept, a.nearCanopyHeroLimited, sum((p) => p.triangles), sum((p) => p.leaves), sum((p) => p.farLeaves)];
           }),
-        /** [id, distance, in-radius, triangles, laminae, nearest framing hero camera (m; null: none), world centre] */
+        /** [id, distance, in-radius, triangles, laminae, crown radius, world centre] */
         shown: nearCanopies
-          .filter((nc) => nc.mesh.visible)
-          .map((nc) => [nc.id, Math.round(nc.dist * 10) / 10, Math.round(nc.inM * 10) / 10, nc.triangles, nc.leaves, null, nc.center.toArray().map((v) => Math.round(v * 10) / 10)]),
+          .filter((nc) => nc.shown)
+          .map((nc) => [nc.id, Math.round(nc.dist * 10) / 10, Math.round(nc.inM * 10) / 10, nc.triangles, nc.leaves, Math.round(nc.radius * 10) / 10, nc.center.toArray().map((v) => Math.round(v * 10) / 10)]),
+        /**
+         * What the 64 slots actually buy: the shown lobes' summed apparent area (Σ r² / d², steradian-ish)
+         * against the same sum over every ACTIVE lobe. `shownCoverage / activeCoverage` is the share of
+         * the crown mass around the player that draws its near laminae, which is the thing a better
+         * ranking should raise for the same `shownTriangles` (see NEAR_CANOPY_SIZE_BIAS).
+         */
+        shownCoverage:
+          Math.round(
+            nearCanopies.filter((nc) => nc.shown && nc.kind === 'lobe').reduce((n, nc) => n + (nc.radius * nc.radius) / Math.max(1, nc.dist * nc.dist), 0) * 1000,
+          ) / 1000,
+        activeCoverage:
+          Math.round(nearCanopies.filter((nc) => nc.active && nc.kind === 'lobe').reduce((n, nc) => n + (nc.radius * nc.radius) / Math.max(1, nc.dist * nc.dist), 0) * 1000) / 1000,
+        /**
+         * How hard the SLOT CAP is pressing (2026-09-24, lane 2). `nearCanopyUpdate` takes the nearest
+         * `NEAR_CANOPY_SLOTS` active non-persistent lobes; `activeLobes` is how many were eligible, so
+         * `slotOverflow` above zero means the selection is decided by RANK, and a lobe can be admitted
+         * or evicted by a metre of walking with no hysteresis behind it — unlike the in / out radii,
+         * which have some. `farthestShownM` says where the effective boundary actually is, which is not
+         * the 26 m in-radius when the cap binds.
+         */
+        activeLobes: nearCanopies.filter((nc) => nc.active && nc.kind === 'lobe' && !nc.persistent).length,
+        slotOverflow: Math.max(0, nearCanopies.filter((nc) => nc.active && nc.kind === 'lobe' && !nc.persistent).length - NEAR_CANOPY_SLOTS),
+        farthestShownM: nearCanopies.filter((nc) => nc.shown).reduce((m, nc) => Math.max(m, Math.round(nc.dist * 10) / 10), 0),
         /** triangles drawn for the shown parts against the far triangles they fold away (≈ 5 per far lamina, 2 per card) */
-        shownTriangles: nearCanopies.filter((nc) => nc.mesh.visible).reduce((n, nc) => n + nc.triangles, 0),
-        foldedTriangles: nearCanopies.filter((nc) => nc.mesh.visible && !nc.persistent).reduce((n, nc) => n + nc.farLeaves * 5 + nc.farCards * 2, 0),
+        shownTriangles: nearCanopies.filter((nc) => nc.shown).reduce((n, nc) => n + nc.triangles, 0),
+        /** parts inside their swap-in radius whose near buffers are not resident yet — the crown a walker sees pop in when its build lands (owner 2026-09-23 20:08) */
+        late: nearCanopies.filter((nc) => nc.dist < nc.inM && !nearCanopyPool.isResident(nc.item)).length,
+        foldedTriangles: nearCanopies.filter((nc) => nc.shown && !nc.persistent).reduce((n, nc) => n + nc.farLeaves * 5 + nc.farCards * 2, 0),
       },
       maxBaseGap: Math.round(maxBaseGap * 1e4) / 1e4,
       basesChecked: allBases.length,
@@ -3604,24 +5731,37 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
   group.traverse((o) => {
     const g = (o as Mesh).geometry as BufferGeometry | undefined;
     if (!(o as Mesh).isMesh || !g) return;
+    // round 54: the near-canopy batch keeps its Float32 layout and its CPU copies (three copies new parts into them)
+    if ((o as BatchedMesh).isBatchedMesh) return;
     if (!g.boundingSphere) g.computeBoundingSphere();
     if (!compacted.has(g)) {
       compacted.add(g);
-      compactAttributes(g);
+      // a sector whose layout was decided with its far laminae (FarFoliageBatch) keeps that decision
+      if (!layoutFixed.has(g)) compactAttributes(g);
     }
     releaseAfterUpload(g);
   });
   ctx.progress('trees', 1);
-
+  phase('distant-mid-and-publish');
+  let prebuilt = false;
   return {
     name: 'trees',
     group,
-    update(dt, _t, c) {
-      rebucket(c.camera, false, dt);
+    update(_dt, _t, c) {
+      rebucket(c.camera);
+      if (!prebuilt) {
+        prebuilt = true;
+        const t0 = performance.now();
+        nearBasePool.work(NEAR_LOD_PREBUILD_MS);
+        nearCanopyPool.work(Math.max(0.5, NEAR_LOD_PREBUILD_MS - (performance.now() - t0)));
+        return;
+      }
       // the near parts' pending builds, within the frame budget (the canopy first: its parts are
       // the many; the bases take what is left, at least a chunk's worth so they never starve)
       const t0 = performance.now();
       nearCanopyPool.work(NEAR_LOD_BUILD_BUDGET_MS);
+      nearCanopyBatch?.trim();
+      columnNearCanopyBatch?.trim();
       nearBasePool.work(Math.max(0.5, NEAR_LOD_BUILD_BUDGET_MS - (performance.now() - t0)));
     },
     onCameraMove(camera) {
@@ -3654,10 +5794,12 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
       nearCanopyPool.dispose();
       nearBasePool.dispose();
       for (const g of sectorGeometries) g.dispose();
+      for (const batch of farFoliage) batch.mesh.dispose();
       for (const g of detachedGeometries) g.dispose();
       for (const s of distantSets) (s.variant.near.dispose(), s.variant.far.dispose());
+      // the mid crowns share the far layer's atlas: dispose the material, not the map (once, above)
+      midCrown.dispose();
       (distantCrown.map?.dispose(), distantCrown.dispose());
-      distantCloseMaterial.dispose();
     },
   };
 }

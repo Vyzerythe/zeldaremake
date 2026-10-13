@@ -19,7 +19,7 @@
  * Any agent may READ this file. Only change values here when a reference comparison demands it and
  * record the change in your .agents/<agent>.md log — several systems depend on these numbers.
  */
-import { Vector3 } from 'three';
+import { CatmullRomCurve3, Vector3 } from 'three';
 
 export interface StairDef {
   id: string;
@@ -216,6 +216,17 @@ export const LAYOUT = {
     // converges like the reference's (depth ratio 1.8 vs 1.5). Bearing 52 deg; the W04 probe at
     // (18, -4) sits 0.1 m past the top tread (run 10.8 m); the reference run is ~12.4 m, which the probe
     // forbids (RUBRIC_PROPOSALS 2026-09-12).
+    // 2026-09-23 23:00 (the owner sent the real game's main stairway, `pass5/owner-2300-reference-stairs.png`,
+    // and it is the same climb as `demo61/d_010`–`d_016`): his flight is MANY shallow treads — 22–24
+    // thin lit nosings stacked up into the mist — where ours read as fourteen broad slabs. 26 steps
+    // of 0.2077 m over 0.4154 m keep the run (10.8 m), the total rise (5.4 m), the bearing, the
+    // width and therefore the top tread and the W04 probe at (18, −4) EXACTLY where they were; only
+    // the tread count inside that envelope changes. The riser drops further under the player
+    // controller's 0.28 m step guard.
+    // 2026-09-24 11:05 (fable-cursor: W02 regressed — "Hero stairway: 18 worn stone steps", the audit counts
+    // 26 against 16–20): back to 20 × 0.27 × 0.54 in the same envelope — inside W02's band, under the 0.28 m
+    // step guard Astra's whole-leg study set (18 × 0.30 is not), the top tread and the W04 probe where they
+    // were. The stone's value, wear and wandering nosing (stairs.ts) stay; only the count changes.
     { id: 'main', base: [7.3, 0, -0.1], dir: [1, -0.78], steps: 20, rise: 0.27, tread: 0.54, width: 3.0 },
     // Round 32: the `north` steps are gone — a 7 × 0.26 × 0.5 m flight at base (−0.9, 0, −16),
     // bearing 217°, climbing WEST off the north path onto the boulder bank. Its frame-14 s
@@ -805,6 +816,371 @@ export const EXPANSION_BOX = (() => {
   add(b.x, b.z, Math.max(b.halfLength + b.skirt, b.depth + b.back) + 3.2);
   return box;
 })();
+
+/**
+ * Round 56 (expansion-south; the owner, 2026-09-23 20:08 UTC: "why for the love of God has there
+ * been no expansion to the environment past the stuff"): the village's way out, south of the
+ * plaza. The flagstone path runs on from the spine's south end (1, 16) between the `plaza-south`
+ * and `south-centre` giants, bends onto the axis of a rope-and-plank bridge over a misty ravine,
+ * and ends at the glowing mouth of a hollow log burrowing into the far bank.
+ *
+ * Placed against camera C, the only fixed camera that looks south: the bridge, its posts and
+ * pods, the far path and the log all stand inside the wedge the `plaza-south` trunk hides from C
+ * (x ≥ 2.33 − 0.0046 (z + 7.67) behind the bole). From Link's spawn (0, 0.5) the same trunk hides
+ * only x ≥ 0.11 (z − 0.5), so the bridge's west posts and pods and the mouth's west half show
+ * past its west flank — the first thing a walker sees looking south. C does see the path strip
+ * between the giants (z 16–27, bearings −7° … 0°) and the ravine's far lip at 45 m.
+ *
+ * Nothing here is in `LAYOUT`'s lists (the legacy streams iterate them — see `EXPANSION`): the
+ * heightfield's LIVE view paves the path and cuts the ravine, `expansionCull` clears the legacy
+ * streams' instances off the new ground, and structures, hardscape, vegetation, atmosphere and
+ * the character ground read these exports.
+ */
+export const EXPANSION_SOUTH = {
+  /**
+   * Path nodes (x, 0, z): out of the spine's end cap south-west round `plaza-south`'s foot, through
+   * the gap between it and `south-centre`'s, then south-east onto the bridge axis 0.55 m short of
+   * the north sill. The giants' flared boles meet the ground well outside their layout
+   * `trunkRadius` (trees/giant.ts: `plaza-south` 3.9 m from its axis at (4.4, 20.5),
+   * `south-centre` 3.16 m at (−4.5, 27)); the paving keeps ≥ 0.4 m off both past 0.1 m of bark
+   * relief, and their buttress roots dive under it. `southPathLine()` is the smoothed line every
+   * system reads; the heights come from the live terrain (the natural grade, smoothed).
+   */
+  path: [
+    [1, 0, 16],
+    [-0.5, 0, 17.2],
+    [-1.2, 0, 19.4],
+    [-1.32, 0, 21.6],
+    [-0.8, 0, 23.55],
+    [0.4, 0, 25.15],
+    [2.0, 0, 26.55],
+    [3.3, 0, 27.9],
+    [3.68, 0, 28.95],
+    [3.705, 0, 29.9],
+  ] as [number, number, number][],
+  /** paved half width (m): `start` at the spine's end, easing to `end` over the first `taper` m */
+  pathHalfWidth: { start: 2.0, end: 1.2, taper: 3.2 },
+  /**
+   * The rope-and-plank bridge: sill-to-sill from `north` to `south` (xz), the deck resting on
+   * the sills at the terrain + `sill`, sagging `sag` m at mid-span; planks `deckHalfWidth` either
+   * side of the axis, the walk `walkHalfWidth`; hand ropes `rail` m over the deck on four end
+   * posts `postHeight` tall, `postOut` m across the axis and `postBack` m behind each sill.
+   */
+  bridge: {
+    north: [3.72, 30.45] as [number, number],
+    south: [4.08, 43.7] as [number, number],
+    sill: 0.26,
+    sag: 0.7,
+    deckHalfWidth: 0.62,
+    walkHalfWidth: 0.5,
+    rail: 0.98,
+    postHeight: 1.9,
+    postOut: 0.84,
+    postBack: 0.18,
+  },
+  /** the few metres of paving from the bridge's south sill to the log's mouth (x, 0, z) */
+  farPath: [
+    [4.08, 0, 43.7],
+    [4.14, 0, 45.2],
+    [4.2, 0, 46.3],
+  ] as [number, number, number][],
+  farPathHalfWidth: 1.1,
+  /**
+   * The hollow log: its mouth rim centre at `mouth` (xz), its axis heading `dir` (into the far
+   * bank), `length` m of shell; bark `outerRadius`, hollow `innerRadius`, the axis `axisY` m over
+   * the floor (the floor is a built deck of packed litter at the mouth's ground level; the
+   * terrain under the hollow is carved below it up to `carveEnd`). The walk ends `deadEnd` m in,
+   * where the glow closes the tube.
+   *
+   * `mound` is the bank it burrows into, added to the plain. Past z 48 the terrain is on the 1 m
+   * lattice, which cannot follow a 0.39 m shell, so the bank never rises over the visible hollow:
+   * the log lies in a trough between two shoulders (rising from `shoulder[0]` m off the axis to
+   * `height` at `shoulder[1]`, growing along the log from `rise` to the face), and a steep face
+   * between `face[0]` and `face[1]` m along the axis — behind the glow, past the last carved
+   * lattice line at a ≈ 6.1 — swallows the log's end. Level to `crest`, back to the plain by
+   * `back` (inside the distant forest's 60 m edge); the whole bank fades out between `halfTop`
+   * and `halfBase` m off the axis — a broad forested rise the log burrows into (a bank ending at
+   * the shoulders read as a lone cone from the bridge), uneven past the trough and eased out
+   * before the ravine's lip (terrain/south.ts `bankHeight`).
+   */
+  tunnel: {
+    mouth: [4.25, 46.9] as [number, number],
+    dir: [0.03, 1] as [number, number],
+    length: 7.6,
+    outerRadius: 2.05,
+    innerRadius: 1.66,
+    axisY: 1.28,
+    deadEnd: 5.6,
+    carveEnd: 6.35,
+    mound: { rise: 0.4, face: [6.2, 7.1] as [number, number], crest: 9.5, back: 13.0, shoulder: [2.3, 4.8] as [number, number], halfTop: 8.0, halfBase: 14.0, height: 4.0 },
+  },
+  /**
+   * The ravine's centreline (x, z, top half width W, depth D) west → east: a gorge closing to
+   * nothing at both ends (r < 59 m, inside the distant forest's 60 m inner edge), its full depth
+   * across the bridge. Walls: a rounded lip over the last metre, a steep rock face, a talus apron
+   * over the floor (`floorHalfWidth`). The west arm swings south-west well clear of the far hut's
+   * knoll (−41, 35.7); the north rim keeps ≥ 6.8 m from `south-centre`'s axis and ≥ 9 m from
+   * `south-giant`'s, so no giant's buttress overhangs it by more than a metre.
+   */
+  ravine: {
+    line: [
+      [-27.2, 52.2, 1.8, 0],
+      [-23.6, 48.4, 3.5, 3.4],
+      [-18.6, 44.9, 4.5, 6.4],
+      [-11.6, 42.0, 5.0, 7.8],
+      [-4.4, 39.9, 5.2, 8.5],
+      [3.9, 37.08, 5.0, 8.8],
+      [12.0, 37.35, 5.4, 8.4],
+      [19.0, 39.3, 5.0, 7.5],
+      [24.4, 42.6, 4.3, 5.4],
+      [28.1, 46.5, 3.1, 2.4],
+      [30.3, 49.7, 1.8, 0],
+    ] as [number, number, number, number][],
+    floorHalfWidth: 1.4,
+    /** metres of rounded lip beyond W (the cut eases to 0 there) */
+    lip: 0.9,
+  },
+} as const;
+
+/** Catmull-Rom (centripetal) through `pts`, resampled every ≈ `step` m: the smoothed line (x, 0, z) */
+function smoothLine(pts: readonly (readonly [number, number, number])[], step: number): [number, number, number][] {
+  const curve = new CatmullRomCurve3(pts.map((p) => new Vector3(p[0], 0, p[2])), false, 'centripetal');
+  const n = Math.max(2, Math.ceil(curve.getLength() / step));
+  return curve.getSpacedPoints(n).map((p) => [+p.x.toFixed(4), 0, +p.z.toFixed(4)] as [number, number, number]);
+}
+const SOUTH_PATH_LINE = smoothLine(EXPANSION_SOUTH.path, 0.4);
+/** the south path's smoothed centreline (x, 0, z), every ≈ 0.4 m from the spine's end to the bridge axis */
+export function southPathLine(): readonly [number, number, number][] {
+  return SOUTH_PATH_LINE;
+}
+/** the south path's paved half width `s` m along its line */
+export function southPathHalfWidth(s: number): number {
+  const w = EXPANSION_SOUTH.pathHalfWidth;
+  const t = Math.min(1, Math.max(0, s / w.taper));
+  return w.start + (w.end - w.start) * t * t * (3 - 2 * t);
+}
+
+/**
+ * The ravine's smoothed centreline: Catmull-Rom through `ravine.line`'s nodes every ≈ 0.8 m,
+ * each sample carrying its top half width and depth, eased (smoothstep) between the nodes'
+ * values by arc length — (x, z, W, D).
+ */
+const SOUTH_RAVINE_LINE: [number, number, number, number][] = (() => {
+  const nodes = EXPANSION_SOUTH.ravine.line;
+  const curve = new CatmullRomCurve3(nodes.map((p) => new Vector3(p[0], 0, p[1])), false, 'centripetal');
+  const lengths = curve.getLengths(nodes.length * 40);
+  const total = lengths[lengths.length - 1];
+  const nodeS = nodes.map((_, i) => lengths[Math.round((i / (nodes.length - 1)) * (lengths.length - 1))]);
+  const n = Math.ceil(total / 0.8);
+  const out: [number, number, number, number][] = [];
+  for (let k = 0; k <= n; k++) {
+    const u = k / n;
+    const p = curve.getPointAt(u);
+    const s = u * total;
+    let i = 0;
+    while (i < nodes.length - 2 && s > nodeS[i + 1]) i++;
+    const t0 = Math.min(1, Math.max(0, (s - nodeS[i]) / Math.max(nodeS[i + 1] - nodeS[i], 1e-6)));
+    const t = t0 * t0 * (3 - 2 * t0);
+    const w = nodes[i][2] + (nodes[i + 1][2] - nodes[i][2]) * t;
+    const d = nodes[i][3] + (nodes[i + 1][3] - nodes[i][3]) * t;
+    out.push([+p.x.toFixed(4), +p.z.toFixed(4), +w.toFixed(4), +d.toFixed(4)]);
+  }
+  return out;
+})();
+/** the ravine's smoothed centreline samples (x, z, top half width, depth) */
+export function southRavineLine(): readonly (readonly [number, number, number, number])[] {
+  return SOUTH_RAVINE_LINE;
+}
+
+/** the bridge's frame: unit axis (north → south sill), its length, and the across unit (west-ish: the axis turned +90° about y) */
+export function southBridgeFrame(): { ax: number; az: number; len: number; cx: number; cz: number } {
+  const B = EXPANSION_SOUTH.bridge;
+  const dx = B.south[0] - B.north[0];
+  const dz = B.south[1] - B.north[1];
+  const len = Math.hypot(dx, dz);
+  return { ax: dx / len, az: dz / len, len, cx: -dz / len, cz: dx / len };
+}
+
+/** the log tunnel's frame: unit axis into the bank and the across unit */
+export function southTunnelFrame(): { ax: number; az: number; cx: number; cz: number } {
+  const [dx, dz] = EXPANSION_SOUTH.tunnel.dir;
+  const l = Math.hypot(dx, dz);
+  return { ax: dx / l, az: dz / l, cx: -dz / l, cz: dx / l };
+}
+
+/**
+ * The south expansion's XZ boxes (with margin): the path corridor, the ravine (its whole run plus
+ * the rims), the far bank round the log. `inExpansionSouth` is their union — where the live view
+ * can differ from the legacy one at all.
+ */
+export const EXPANSION_SOUTH_BOXES = (() => {
+  const box = () => ({ x0: Infinity, x1: -Infinity, z0: Infinity, z1: -Infinity });
+  const add = (b: ReturnType<typeof box>, x: number, z: number, m: number) => {
+    b.x0 = Math.min(b.x0, x - m);
+    b.x1 = Math.max(b.x1, x + m);
+    b.z0 = Math.min(b.z0, z - m);
+    b.z1 = Math.max(b.z1, z + m);
+  };
+  const S = EXPANSION_SOUTH;
+  const path = box();
+  for (const p of SOUTH_PATH_LINE) add(path, p[0], p[2], S.pathHalfWidth.start * 1.9 + 1.4);
+  add(path, S.bridge.north[0], S.bridge.north[1], 3.0);
+  const ravine = box();
+  for (const [x, z, w] of SOUTH_RAVINE_LINE) add(ravine, x, z, w + S.ravine.lip + 2.4);
+  const T = S.tunnel;
+  const bank = box();
+  const tf = southTunnelFrame();
+  // the mound's footprint (along −0.5 … back, ± halfBase) with a 1.5 m margin
+  for (const a of [-0.5, T.mound.back]) {
+    for (const c of [-T.mound.halfBase, T.mound.halfBase]) add(bank, T.mouth[0] + tf.ax * a + tf.cx * c, T.mouth[1] + tf.az * a + tf.cz * c, 1.5);
+  }
+  add(bank, T.mouth[0], T.mouth[1], 4.5);
+  for (const p of S.farPath) add(bank, p[0], p[2], 3.0);
+  return [path, ravine, bank];
+})();
+
+/** true inside one of `EXPANSION_SOUTH_BOXES` */
+export function inExpansionSouth(x: number, z: number): boolean {
+  for (const b of EXPANSION_SOUTH_BOXES) if (x >= b.x0 && x <= b.x1 && z >= b.z0 && z <= b.z1) return true;
+  return false;
+}
+
+/**
+ * 2026-09-24 (expansion-north; owner 06:07: "more structures along the path further down"): the
+ * GROVE above the ledge terrace. A stone flight climbs the bank from the terrace's north edge, a
+ * stepping-stone trail winds on up between the north stand's trunks, and a level shelf cut into
+ * the hillside carries a second hamlet: a trunk house like the village's (structures/house.ts), a
+ * stilt house over the falling east slope reached by a plank gangway, and a tree hut on its own
+ * bark column, joined to the stilt house by a short rope walkway, a lookout nest above it.
+ *
+ * Everything here is 78–112 m north of the plaza, behind the log arch and the ledge: no fixed
+ * camera frames it (D, the one north-looking frame, ends in haze beyond the arch). Like
+ * `EXPANSION` / `EXPANSION_SOUTH` nothing is in a LAYOUT list the legacy streams iterate; the
+ * landform is in the heightfield's LIVE view only (terrain/north.ts) and the legacy-placed trees,
+ * rocks, props and vegetation on its ground are removed by post-placement filters (heightfield
+ * `expansionCull`, trees `northGroveClear`).
+ *
+ * Heights are absolute (the shelf's natural ground runs 10.2–11.9 m; the terrace is 5.62 m).
+ */
+export const EXPANSION_NORTH = {
+  /**
+   * The trail from the grove flight's landing (8.05 m) to the shelf (10.0 m), with its design
+   * heights: 24 % out of the landing easing to 15 % at the shelf's lip. The heightfield flattens
+   * the trail's width to this profile (cut ≤ 0.5 m into the natural slope) and lays set stepping
+   * stones along it.
+   */
+  trail: [
+    [-0.15, 8.05, -85.25],
+    [-0.95, 8.62, -87.45],
+    [-0.45, 9.16, -89.85],
+    [1.05, 9.58, -91.95],
+    [2.3, 9.94, -93.9],
+    [2.5, 10.0, -96.0],
+  ] as [number, number, number][],
+  /** the trail's flattened half width (m); the discs run down its middle */
+  trailHalfWidth: 0.95,
+  discs: { from: 0.45, spacing: 0.92, radius: [0.36, 0.44] as [number, number], wobble: 0.17 },
+  /**
+   * The level shelf: a superellipse (exponent 4) of half extents `hx` × `hz` round (`cx`, `cz`) at
+   * `y`, its edge blending back to the natural slope over `edge` m — a 2 m bank on the north side,
+   * a fill of ≤ 0.4 m on the south lip. `pads` are round level extensions at the same height (the
+   * gangway's foot).
+   */
+  shelf: { cx: -0.5, cz: -99.2, y: 10.0, hx: 8.2, hz: 5.4, edge: 2.6, pads: [{ x: 6.7, z: -94.35, r: 1.5 }] },
+  /** the hamlet's trunk house (structures/house.ts — the upper house's settings), its door toward the trail's arrival */
+  house: { id: 'grove-house', position: [-3.9, 10.0, -101.4], trunkRadius: 2.2, facing: [0.68, 0.73], roofHeight: 4.3, lanterns: 2 } as HouseDef,
+  /**
+   * The stilt house: a `distantHouse` hut with no bole through it, on a cut stump (the braces'
+   * seat, radius 0.55 R) and four log stilts under the rim of a plank veranda `veranda` m wide
+   * round the wall, over the east slope (natural ground 8.2–9.2 m under the platform). Window
+   * toward the trail, door toward the gangway's head, the walkway stub (the rope walkway's start)
+   * leaving the veranda's rim toward the tree hut. Its wall (and the tree hut's) is taller than a
+   * far hut's: the cap's rim hangs over the deck Link walks, 2.2 m up (at the far huts' 1.75 m it
+   * brushed his head and the follow camera's aim).
+   */
+  stilt: { host: [12.0, -91.5] as [number, number], floorY: 11.6, radius: 1.55, veranda: 1.1, wall: 2.35, capHeight: 1.05, capOverhang: 0.5, facingDeg: -58, doorAbsDeg: -118.6, ladderAbsDeg: -18, stiltAbsDeg: [22, 92, 162, -52] },
+  /** the plank gangway from the shelf's pad up to the stilt house's door: horizontal run (m) and cleat spacing */
+  gangway: { run: 4.05, halfWidth: 0.42, cleat: 0.36 },
+  /**
+   * The tree hut round its own bark column (no published seat stands here): column base radius,
+   * top radius, height, the crown's limbs from `crownY`; the hut 4.3 m up it, window toward the
+   * trail, door toward the stilt house.
+   */
+  hut: { host: [16.8, -85.2] as [number, number], floorY: 11.3, radius: 1.45, wall: 2.3, capHeight: 0.95, capOverhang: 0.45, facingDeg: -86, doorAbsDeg: -142.7, ladderAbsDeg: -30, hoistAbsDeg: 40 },
+  column: { baseRadius: 0.9, topRadius: 0.45, height: 22, crownY: 17.5 },
+  /** the lookout nest on the column over the hut's cap: floor height (absolute), ring radius */
+  nest: { floorY: 16.3, radius: 1.2 },
+  /** the rope walkway between the two walkway stubs: stub length past each rim (m), sag (m) */
+  ropeWalk: { stub: 0.7, sag: 0.12, halfWidth: 0.42 },
+  lanternPosts: [
+    { id: 'grove-flight-head', position: [-1.35, -84.3], facing: [1, 0.15], height: 2.35, tint: 'orange' },
+    { id: 'grove-shelf-lip', position: [3.55, -94.4], facing: [-0.85, 0.55], height: 2.45, tint: 'lime' },
+  ] as LanternPostDef[],
+  /** the sign at the flight's foot on the terrace, facing the ledge stairs' head */
+  signpost: { id: 'grove-sign', position: [2.25, 5.62, -79.1] as [number, number, number], facing: [0.35, 0.94] as [number, number] },
+};
+
+/**
+ * The grove's stone flight up the bank from the ledge terrace's north edge (hardscape builds it
+ * with the ledge flight's log nosings; its trench, banks and landing are in the heightfield's
+ * live view). Not in `EXPANSION_STAIRS`: those are hidden with the west expansion's hardscape.
+ */
+export const NORTH_STAIRS: StairDef[] = [{ id: 'grove', base: [0.5, 5.62, -79.85], dir: [-0.12, -1], steps: 9, rise: 0.27, tread: 0.42, width: 1.4 }];
+
+/** the trail's stepping discs (terrain paves exactly these; hardscape lays a set stone on each) */
+export function northSteppingStones(): SteppingStone[] {
+  return steppingStonesAlong(EXPANSION_NORTH.trail, { ...EXPANSION_NORTH.discs, skip: [Infinity, Infinity] });
+}
+
+/** the stilt house's and the tree hut's `distantHouse` walkway ends: each stub `ropeWalk.stub` m past its rim (the stilt house's veranda, the tree hut's platform) toward the other hut */
+export function northRopeWalkEnds(): { stilt: [number, number, number]; hut: [number, number, number] } {
+  const N = EXPANSION_NORTH;
+  const [sx, sz] = N.stilt.host;
+  const [hx, hz] = N.hut.host;
+  const l = Math.hypot(hx - sx, hz - sz);
+  const ux = (hx - sx) / l;
+  const uz = (hz - sz) / l;
+  const sr = N.stilt.radius + N.stilt.veranda + N.ropeWalk.stub;
+  const hr = N.hut.radius + 0.22 + N.ropeWalk.stub;
+  return { stilt: [sx + ux * sr, N.stilt.floorY, sz + uz * sr], hut: [hx - ux * hr, N.hut.floorY, hz - uz * hr] };
+}
+
+/** the gangway: foot on the shelf's pad (x, y, z) and head on the stilt house's veranda rim in front of its door */
+export function northGangway(): { foot: [number, number, number]; head: [number, number, number]; dir: [number, number] } {
+  const N = EXPANSION_NORTH;
+  const a = (N.stilt.doorAbsDeg * Math.PI) / 180;
+  const dx = Math.sin(a);
+  const dz = Math.cos(a);
+  const rim = N.stilt.radius + N.stilt.veranda;
+  const head: [number, number, number] = [N.stilt.host[0] + dx * (rim - 0.05), N.stilt.floorY + 0.01, N.stilt.host[1] + dz * (rim - 0.05)];
+  const foot: [number, number, number] = [head[0] + dx * N.gangway.run, N.shelf.y, head[2] + dz * N.gangway.run];
+  return { foot, head, dir: [-dx, -dz] };
+}
+
+/** the grove's XZ box: the flight, the trail, the shelf and the east huts, with a 3 m margin — where the live view can differ from the legacy one */
+export const EXPANSION_NORTH_BOX = (() => {
+  const N = EXPANSION_NORTH;
+  const b = { x0: Infinity, x1: -Infinity, z0: Infinity, z1: -Infinity };
+  const add = (x: number, z: number, m: number) => {
+    b.x0 = Math.min(b.x0, x - m);
+    b.x1 = Math.max(b.x1, x + m);
+    b.z0 = Math.min(b.z0, z - m);
+    b.z1 = Math.max(b.z1, z + m);
+  };
+  for (const s of NORTH_STAIRS) add(s.base[0], s.base[2], 3);
+  for (const p of N.trail) add(p[0], p[2], 3);
+  add(N.shelf.cx - N.shelf.hx, N.shelf.cz - N.shelf.hz, N.shelf.edge + 3);
+  add(N.shelf.cx + N.shelf.hx, N.shelf.cz + N.shelf.hz, N.shelf.edge + 3);
+  add(N.stilt.host[0], N.stilt.host[1], N.stilt.radius + 4.5);
+  add(N.hut.host[0], N.hut.host[1], N.hut.radius + 4.5);
+  return b;
+})();
+
+/** true inside `EXPANSION_NORTH_BOX` */
+export function inExpansionNorth(x: number, z: number): boolean {
+  const b = EXPANSION_NORTH_BOX;
+  return x >= b.x0 && x <= b.x1 && z >= b.z0 && z <= b.z1;
+}
 
 export function v3(a: readonly [number, number, number]): Vector3 {
   return new Vector3(a[0], a[1], a[2]);

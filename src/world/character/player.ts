@@ -12,6 +12,8 @@ export interface PlayerInput {
   run: boolean;
   /** jump button held (Space / gamepad A); a jump starts on the press, never repeats while held */
   jump?: boolean;
+  /** sign button held (T / gamepad Y); each press raises or lowers the sign (signPose.ts) */
+  sign?: boolean;
 }
 
 export interface PlayerHandle {
@@ -25,8 +27,20 @@ export interface PlayerHandle {
   setPlayMode(on: boolean): void;
   playMode(): boolean;
   setInput(input: PlayerInput): void;
-  /** Read the last posed boot contacts so footstep audio follows the existing gait. */
+  /** the walkable ground under (x, z) as Link stands on it: terrain, stair treads, built decks, paving slabs */
+  groundHeight(x: number, z: number): number;
+  /** the rendered walking surface under (x, z): `groundHeight` raised to the rendered stair stones / timbers */
+  surfaceHeight(x: number, z: number): number;
+  /**
+   * both boots against the rendered surface as last posed: the sole's gap over the stone / timber
+   * under it and the smallest gap over the boot's footprint (m, negative = inside), and whether
+   * the gait calls the foot a stance foot (play-test harness)
+   */
   feetContact?(): { gapM: number; minShoeGapM: number; stance: boolean }[];
+  /** true where props, structure pads or walls stop walking at (x, z) (play-test harness) */
+  blockedAt?(x: number, z: number): boolean;
+  /** put Link at rest at (x, z) facing `yaw` (play-test harness and authoring) */
+  place(x: number, z: number, yaw: number): void;
 }
 
 export const PLAYER_KEY = 'player';

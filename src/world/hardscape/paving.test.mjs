@@ -212,7 +212,14 @@ test('V17: the main flight lightens foot → top; the other flights and the nosi
     const t = b.treadTone;
     assert.ok(mean(t) >= 0.6 && mean(t) <= 0.9, `${def.id} keeps its level tone (${mean(t).toFixed(3)})`);
   }
-  // take-0123's audit `samplePositions.treadNose`, the main flight's first eight tread noses
+  // The main flight's first eight tread noses, re-pinned 2026-09-23 23:00 when the flight went to
+  // 26 shallow treads for the owner's own reference (layout.ts `main`; the run, the total rise and
+  // the bearing are unchanged, so the foot and the top tread are where they were — only the tread
+  // count inside that envelope moved). Before that they were take-0123's audit values for the
+  // 20-step flight, the first of which was [7.873, 0.27, 0.747].
+  // 2026-09-24 11:05 (fable-cursor: W02 counts 26 against its 16–20): the flight is 20 × 0.27 × 0.54 again in
+  // the same envelope, and these are take-0123's values once more — the stream is the flight's, so the
+  // 20-step noses come back exactly (the 26-step pins were [7.873, 0.207, 0.747], [6.952, 0.207, −0.435], …).
   const expected = [
     [7.873, 0.27, 0.747],
     [6.952, 0.27, -0.435],

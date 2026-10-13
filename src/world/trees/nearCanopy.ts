@@ -692,7 +692,7 @@ export function createNearCanopyKit(o: NearCanopyKitOptions) {
     };
   };
 
-  return { lobePart, limbPart, pathLength, lobeSteps };
+  return { lobePart, limbPart, pathLength };
 }
 
 /** run a chunked build to its end (the first build of a part, tests) */

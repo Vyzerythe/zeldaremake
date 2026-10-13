@@ -1,4 +1,6 @@
 node_modules/
+# worktrees link node_modules; a trailing-slash pattern does not match the link itself
+/node_modules
 dist/
 .vite/
 *.log
@@ -11,6 +13,9 @@ gauntlet/tmp/
 
 # Reference video (download with `npm run ref:extract`; only downscaled frames are committed)
 reference/video/
+
+# Probe builds (a family-tagged dist used to identify what a pixel is)
+dist-probe/
 
 # Local monitor data checkout used by `npm run take`
 .monitor/

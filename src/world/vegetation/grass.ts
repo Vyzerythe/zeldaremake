@@ -13,7 +13,7 @@ import { BufferGeometry, DynamicDrawUsage, Float32BufferAttribute, Frustum, Grou
 import type { WorldContext } from '../system';
 import { smoothstep, clamp } from '../util/noise';
 import type { Rng } from '../util/prng';
-import { A_FACE_HEIGHT, BANK_FLOOR_SHARE, VegField, composeMatrix, newSample } from './field';
+import { A_FACE_HEIGHT, BANK_FLOOR_SHARE, VERGE_LEFT, VegField, composeMatrix, newSample } from './field';
 import { BLADE_MIN, COVERAGE_CELL } from './coverage';
 import { terraceDropsBlade, tileMeetsTerrace } from './edges';
 import { compactExpansionBlades, filterExpansionSamples, tileMeetsExpansion } from './expansion';
@@ -34,6 +34,14 @@ export interface GrassTile {
   cells: { sphere: Sphere; blades: number }[];
   /** cell index of every blade, in stream order */
   cellOf: Uint8Array;
+  /** 1 for the blades the walked-verge pass placed, in stream order (see VERGE_NEAR_M) */
+  vergeOf: Uint8Array;
+  /** how many of them there are (0: this tile never rewrites for the verge tier) */
+  vergeBlades: number;
+  /** set by `update()`: the tile is near enough to submit its verge blades */
+  wantVerge: boolean;
+  /** whether the last rewrite kept them */
+  vergeKept: boolean;
   /** cell bitmask submitted by the last cull (all cells until a cull trims the tile) */
   keptMask: number;
   /** the pristine instance streams, copied the first time the tile is trimmed */
@@ -90,7 +98,7 @@ export interface GrassResult {
  * a per-vertex flag the shader reads as "this is a near-tile geometry": the broad sedge blades
  * are halved on the near LODs (materials.ts GRASS_SHAPE_VERTEX) and keep their width on the far one.
  */
-function bladeGeometry(segments: number, widthMul: number, near: 0 | 1): { position: Float32BufferAttribute; uv: Float32BufferAttribute; normal: Float32BufferAttribute; near: Float32BufferAttribute; index: Uint16BufferAttribute } {
+export function bladeGeometry(segments: number, widthMul: number, near: 0 | 1): { position: Float32BufferAttribute; uv: Float32BufferAttribute; normal: Float32BufferAttribute; near: Float32BufferAttribute; index: Uint16BufferAttribute } {
   const pos: number[] = [];
   const uv: number[] = [];
   const nrm: number[] = [];
@@ -226,7 +234,11 @@ const RIM_LEAN_TILT = 0.9;
  * tile's blades stay where they were; blades in the band are cut to ≈ 70 % height, meadow stalks
  * are kept out.
  */
-const LAWN_BAND_EXTRA = 0.55;
+// 2026-09-23: the band is the near half of the owner's LEFT verge walking north, and it read as a
+// mown strip. Frame 14 s' contract is its HEIGHT (plants.test: p95 ≤ 0.27 m, p50 below the verge
+// north of the boulder), not its count — so the thickening pass doubles instead, and the height
+// cut stays where the frame put it.
+const LAWN_BAND_EXTRA = 1.15;
 const LAWN_BAND_CUT = 0.3;
 /**
  * Round 14: the main flight's flank banks (field.ts `flankZone`) — the south-east lip lapping the
@@ -247,8 +259,14 @@ const FLANK_CLUSTER_FLOOR = 0.7;
  * shoulder's blades is dropped and the rest cut by D_SHOULDER_HEIGHT. The drop is decided by a
  * position hash AFTER the blade's last draw, so every other blade in the tile keeps its layout.
  */
-const D_SHOULDER_CUT = 0.92;
-const D_SHOULDER_HEIGHT = 0.5;
+// 2026-09-23 (the owner, walking north from the plaza: "make the grass thicker on the left side"):
+// this shoulder is the turf the walker's feet pass through for the first twelve metres of that
+// walk, and 92 % of its blades were dropped for camera D's ragged soil edge at 3–8 m. His
+// recording (review46 r_022–r_028) closes the verge over the slabs instead. The cut is now a
+// thinning, not a clearing, and the rest keeps three quarters of its height; the frame's dusty
+// palette there (the trodden strip's dry tips) is untouched.
+const D_SHOULDER_CUT = 0.3;
+const D_SHOULDER_HEIGHT = 0.26;
 /**
  * Round 32: the house-west flight's flanks (field.ts `houseFlankZone`; frame 56 s' right edge: a
  * mossy grass bank climbing beside the risers, tufts lapping the tread ends; frame 14 s: the same
@@ -288,8 +306,13 @@ const HOUSE_FOOT_DRY = 0.45;
  * dark earth between the blades and the box's edge energy rose (67.7 → 84.7 at 256 × 144): the
  * cover stays closed and lies lower instead.
  */
-const D_HOLLOW_CUT = 0.08;
-const D_HOLLOW_HEIGHT = 0.45;
+// 2026-09-23 (owner, walking the north path: "make the grass thicker on the left side"): the
+// hollow is the ground left of the path from z −16 to −26 (field.ts `dHollow` 0.85–1 there). It
+// now keeps every blade, stands at 88 % height, takes the coverage fill and D_HOLLOW_THICKEN more
+// candidates, with half the meadow share of the free lawn — a full turf, not the frame's cut cover.
+const D_HOLLOW_CUT = 0;
+const D_HOLLOW_HEIGHT = 0.12;
+const D_HOLLOW_THICKEN = 0.5;
 /**
  * Round 35: camera C's bottom-left foreground (field.ts `cFoot`; frame 46 s: trodden earth with
  * a fine dusty fringe, lum p50 0.43–0.52 and 0–4 % green at x 0.1–0.35, where control carried a
@@ -331,7 +354,38 @@ const BANK_FLAT = 0.7;
  * and moss beds close the rest, litter.ts / plants.ts), no meadow stalks, cut to
  * NORTH_FLOOR_HEIGHT, in the deep palette (−NORTH_FLOOR_TINT) with more straw.
  */
-const NORTH_FLOOR_KEEP = 0.45;
+const NORTH_FLOOR_KEEP = 0.72;
+/**
+ * 2026-09-24 — the low zone's density cut (field.ts LOW_ZONES: the slope east of the north path
+ * between camera C and the main stairs). The zone's job is HEIGHT — frame 46 shows the stair foot
+ * over it and frame 56 nothing above ≈ 0.5 m — and the height cut below does that on its own. The
+ * density cut on top of it left the owner's most-walked verge at 290 blades / m² at 4 cm, a bare
+ * olive margin beside the paving, while the west side it faces is a closed turf at 487. Thinned
+ * from 0.35 to this: the ground closes, nothing gets taller.
+ */
+const LOW_ZONE_THIN = 0.1;
+/**
+ * 2026-09-23 — the walked verge (field.ts `pathVerge`): a sixth candidate pass at this share of
+ * the tile density over the ground within VERGE_BAND m of the walked paving, from its own stream
+ * (`grass/verge/<tile>`) after every pass above, so no blade of the five moves. The owner's LEFT
+ * (west) side takes VERGE_LEFT × of it. The blades keep every height rule the lawn has — the
+ * spike cap included — so what changes is how closed the fringe at the slabs reads, not how tall
+ * it stands. Only tiles the walked paving passes through run it (`field.tileMeetsVerge`).
+ */
+const VERGE_EXTRA = 1.35;
+/** the same verge under the five passes above: their candidates are accepted this much more readily there */
+const VERGE_THICKEN = 0.5;
+/**
+ * 2026-09-23 (fable-5 13:43, relayed twice in the squad log: "A's 9.15 M triangles are lane 4's
+ * vegetation — lane 4, the turf's density or reach where A does not resolve it"). The verge pass is
+ * a NEAR detail: standing in the band its blades close the fringe at the slabs, and at the far end
+ * of the mid LOD's 26 m a blade is well under a pixel wide, where the carpet's cards, the base
+ * turf and the verge's own violets, leaves and fronds carry the read on their own. A tile whose
+ * near edge is further than this drops the verge pass's blades from its submitted stream — the
+ * cell cull's rewrite with one more filter, so nothing inside the band changes and the triangles
+ * come back at every camera looking down the path.
+ */
+const VERGE_NEAR_M = 14;
 /**
  * Round 47 — the coverage fill (the owner's review of 2026-09-19, item 12: "patches in the grass
  * where it's not full"; coverage.ts is the audit). After a tile's candidate passes, its ground is
@@ -360,14 +414,15 @@ const SEED_HEIGHT: readonly [number, number] = [0.3, 0.44];
 const SEED_WIDTH: readonly [number, number] = [0.011, 0.017];
 const BROAD_SHARE = 0.08;
 const BROAD_WIDTH = 1.7;
-const NORTH_FLOOR_HEIGHT = 0.75;
+// 2026-09-23: the same as carpet.ts' — the corridor's floor closes up and loses its straw
+const NORTH_FLOOR_HEIGHT = 0.85;
 const NORTH_FLOOR_TINT = 0.5;
-const NORTH_FLOOR_DRY = 0.3;
+const NORTH_FLOOR_DRY = 0.12;
 /** the drawn share of a tile can fall below 1: an explicit density flag, or the governor's ladder */
 const THIN_ENABLED = perfFlags().grassDensity < 1 || perfFlags().governor;
 
 /** Fisher–Yates over the first `count` instances of the matrix (16 floats) and data (4 floats) streams */
-function shuffleInstances(matrices: Float32Array, data: Float32Array, count: number, rng: Rng) {
+function shuffleInstances(matrices: Float32Array, data: Float32Array, flags: Uint8Array, count: number, rng: Rng) {
   const m = new Float32Array(16);
   const d = new Float32Array(4);
   for (let i = count - 1; i > 0; i--) {
@@ -379,6 +434,9 @@ function shuffleInstances(matrices: Float32Array, data: Float32Array, count: num
     d.set(data.subarray(i * 4, i * 4 + 4));
     data.copyWithin(i * 4, j * 4, j * 4 + 4);
     data.set(d, j * 4);
+    const f = flags[i];
+    flags[i] = flags[j];
+    flags[j] = f;
   }
 }
 
@@ -421,9 +479,11 @@ export async function buildGrass(ctx: WorldContext, field: VegField, material: M
   }
 
   // capacity for the base pass plus the three extra passes (each ≤ its share of the tile's candidates)
-  const maxPerTile = Math.ceil(TILE * TILE * (BASE_PER_M2 + CANDIDATES_PER_M2 * (LAWN_BAND_EXTRA + FLANK_EXTRA + HOUSE_FLANK_EXTRA + A_FACE_EXTRA)) * Math.max(q.density, 0.1)) + (TILE / COVERAGE_CELL) ** 2 * INFILL_BLADES;
+  const maxPerTile = Math.ceil(TILE * TILE * (BASE_PER_M2 + CANDIDATES_PER_M2 * (LAWN_BAND_EXTRA + FLANK_EXTRA + HOUSE_FLANK_EXTRA + A_FACE_EXTRA + VERGE_EXTRA)) * Math.max(q.density, 0.1)) + (TILE / COVERAGE_CELL) ** 2 * INFILL_BLADES;
   const matrices = new Float32Array(maxPerTile * 16);
   const data = new Float32Array(maxPerTile * 4);
+  /** 1 where the walked-verge pass placed the blade (VERGE_NEAR_M), in stream order */
+  const vergeFlags = new Uint8Array(maxPerTile);
 
   for (let ti = 0; ti < tileCoords.length; ti++) {
     const [cx, cz] = tileCoords[ti];
@@ -432,6 +492,8 @@ export async function buildGrass(ctx: WorldContext, field: VegField, material: M
     const mx = x0 + TILE / 2;
     const mz = z0 + TILE / 2;
     const rng = ctx.rng.fork(`grass/${cx}/${cz}`);
+    // 2026-09-23: only the tiles the walked paving runs through pay for `pathVerge` per candidate
+    const tileVerge = field.tileMeetsVerge(x0, z0, TILE);
     const candidates = Math.round(TILE * TILE * BASE_PER_M2 * field.falloffReach(mx, mz) * q.density);
     let count = 0;
     let ySum = 0;
@@ -447,7 +509,7 @@ export async function buildGrass(ctx: WorldContext, field: VegField, material: M
     // pavings, the mask-side rim, the flight taken out of the trodden strip). `tuft` is the rooted
     // cluster the blade belongs to (round 40): its height multiplier, palette shift and tip tone;
     // `facePass` blades (frame 1's circled bank face, round 40) are accepted at the face weight.
-    const blade = (x: number, z: number, rng: Rng, tuft: Cluster, bandPass: boolean, flankPass = false, housePass = false, facePass = false, infill = false) => {
+    const blade = (x: number, z: number, rng: Rng, tuft: Cluster, bandPass: boolean, flankPass = false, housePass = false, facePass = false, infill = false, vergePass = false) => {
       if (field.reach(x, z) > R + 1.5) return;
       field.sample(x, z, s);
       if (!field.allowed(x, z, s, true)) return;
@@ -460,6 +522,10 @@ export async function buildGrass(ctx: WorldContext, field: VegField, material: M
       if (housePass && house <= 0) return;
       const face = flankPass || housePass || bandPass ? 0 : field.aFace(x, z);
       if (facePass && face <= 0) return;
+      // the walked verge (2026-09-23): its own pass, and a boost to the five above
+      const pv = tileVerge ? field.pathVerge(x, z) : null;
+      const pathVerge = pv ? pv.w * (pv.left ? VERGE_LEFT : 1) : 0;
+      if (vergePass && pathVerge <= 0) return;
 
       const edge = field.lawnEdgeDistance(x, z, true);
       const verge = edge < 2.5 ? 1 + 0.9 * (1 - edge / 2.5) : 1;
@@ -498,23 +564,23 @@ export async function buildGrass(ctx: WorldContext, field: VegField, material: M
       // the shaded bank of frame 8 is a closed turf mass in the reference: cluster gaps close there
       const clusterK = flankPass ? FLANK_CLUSTER_FLOOR + (1 - FLANK_CLUSTER_FLOOR) * cluster : housePass ? HOUSE_FLANK_CLUSTER_FLOOR + (1 - HOUSE_FLANK_CLUSTER_FLOOR) * cluster : cluster;
       // frame 1's circled right foreground (round 40): the south bank's face fills in
-      const density = clusterK * verge * slopeBoost * cliffCut * (1 - 0.75 * giant) * (1 - 0.5 * clr.npc) * (1 - 0.35 * low) * (facePass ? face : 1 + A_FACE_DENSITY * face) * (1 + 0.6 * shade) * (1 - 0.35 * trod - 0.5 * bare) * (bandPass ? band : 1) * (flankPass ? flank : 1) * (housePass ? house : 1);
+      const density = clusterK * verge * slopeBoost * cliffCut * (1 - 0.75 * giant) * (1 - 0.5 * clr.npc) * (1 - LOW_ZONE_THIN * low) * (facePass ? face : 1 + A_FACE_DENSITY * face) * (1 + 0.6 * shade) * (1 - 0.35 * trod - 0.5 * bare) * (bandPass ? band : 1) * (flankPass ? flank : 1) * (housePass ? house : 1) * (1 + D_HOLLOW_THICKEN * hollow) * (vergePass ? pathVerge : 1 + VERGE_THICKEN * pathVerge);
       // round 47: an infill blade skips the density draw (it stands where the passes left a gap)
       // but never on the frames' bare-by-design grounds
       if (infill) {
-        if (density <= 0 || trod > 0.5 || foot > 0.5 || hollow > 0.5 || nfloor > 0.5 || field.dShoulder(x, z) > 0.5 || clr.npc > 0.5) return;
+        if (density <= 0 || trod > 0.5 || foot > 0.5 || nfloor > 0.5 || field.dShoulder(x, z) > 0.5 || clr.npc > 0.5) return;
       } else if (rng() * DNORM > density) return;
 
       // type: tall meadow blades are rare in the low verges, the tidy foreground and the lawn band
       const meadow = field.meadow(x, z);
       const sedge = field.sedge(x, z);
-      const meadowP = 0.78 * meadow * (edge < 3 ? 1.15 : 1) * (1 - clr.npc) * (1 - clr.boulder) * (1 - 0.85 * low) * (1 - 0.9 * sight) * (1 - 0.7 * trim) * (1 - 0.9 * trod) * (1 - 0.85 * band) * (1 - hollow) * (1 - foot) * (1 - nfloor) * (housePass ? 0.3 : 1);
+      const meadowP = 0.78 * meadow * (edge < 3 ? 1.15 : 1) * (1 - clr.npc) * (1 - clr.boulder) * (1 - 0.85 * low) * (1 - 0.9 * sight) * (1 - 0.7 * trim) * (1 - 0.9 * trod) * (1 - 0.85 * band) * (1 - 0.5 * hollow) * (1 - foot) * (1 - nfloor) * (housePass ? 0.3 : 1);
       const sedgeP = 0.42 * sedge * (0.6 + 0.6 * s.plateau) * (1 - clr.npc) * (1 - A_FACE_SEDGE_CUT * face);
       const tr = rng();
       let type = tr < meadowP ? 1 : tr < meadowP + sedgeP ? 2 : 0;
       // the tuft's height (round 40) is damped to 1 where a frame fixed the turf's height — the
       // trodden strip, the lawn band, D's hollow, C's foreground
-      const flat = Math.max(trod, band, hollow, foot);
+      const flat = Math.max(trod, band, 0.5 * hollow, foot);
       // round 47: seed stalks (a position hash — no draw) on the free lawn only
       const freeLawn = !flankPass && !housePass && !infill && flat < 0.5 && nfloor < 0.5 && sight <= 0 && low < 0.5;
       if (type === 0 && freeLawn && hash01(x + 0.125, z + 0.375) < SEED_SHARE) type = SEED_TYPE;
@@ -626,6 +692,7 @@ export async function buildGrass(ctx: WorldContext, field: VegField, material: M
       // the north corridor's forest floor (round 44): the same kind of drop, after every draw
       if (nfloor > 0 && hash01(x + 0.25, z - 0.25) < (1 - NORTH_FLOOR_KEEP) * nfloor) return;
       composeMatrix(matrices, count * 16, x, y, z, nx, s.ny, nz, 0.5, yaw, w, h, h);
+      vergeFlags[count] = vergePass ? 1 : 0;
       const o = count * 4;
       data[o] = phase;
       data[o + 1] = stiffness;
@@ -709,6 +776,16 @@ export async function buildGrass(ctx: WorldContext, field: VegField, material: M
         return count < maxPerTile;
       });
     }
+    // 2026-09-23: the walked verge's sixth pass, over the whole tile (the band is a thin strip
+    // through it; `pathVerge` rejects the rest) from its own stream
+    if (tileVerge) {
+      const vergeRng = ctx.rng.fork(`grass/verge/${cx}/${cz}`);
+      const n = Math.round(TILE * TILE * CANDIDATES_PER_M2 * VERGE_EXTRA * field.falloffReach(mx, mz) * q.density);
+      scatterClusters(vergeRng, x0, z0, TILE, TILE, n, (x, z, tuft) => {
+        blade(x, z, vergeRng, tuft, false, false, false, false, false, true);
+        return count < maxPerTile;
+      });
+    }
     // round 47: the coverage fill (INFILL_*) — the tile swept on the audit grid after every pass
     if (field.reach(mx, mz) <= INFILL_REACH + TILE * 0.71) {
       const cells = Math.round(TILE / COVERAGE_CELL);
@@ -760,6 +837,7 @@ export async function buildGrass(ctx: WorldContext, field: VegField, material: M
           else terraceCulled++;
         },
         meetsTerrace ? (bx, bz) => terraceDropsBlade(T, bx, bz) : undefined,
+        vergeFlags,
       );
     }
     if (count === 0) continue;
@@ -770,7 +848,7 @@ export async function buildGrass(ctx: WorldContext, field: VegField, material: M
     // make every prefix a uniform thinning — as built, the extra passes (lawn band, flanks) sit at
     // the end and a prefix would take them first. Never on the shipped path: the order there is
     // the one the captures were sealed with.
-    if (THIN_ENABLED) shuffleInstances(matrices, data, count, ctx.rng.fork(`grass/thin/${cx}/${cz}`));
+    if (THIN_ENABLED) shuffleInstances(matrices, data, vergeFlags, count, ctx.rng.fork(`grass/thin/${cx}/${cz}`));
 
     const aData = new InstancedBufferAttribute(data.slice(0, count * 4), 4);
     const lods = bases.map((b) => {
@@ -821,7 +899,10 @@ export async function buildGrass(ctx: WorldContext, field: VegField, material: M
       blades: b.n,
       sphere: b.n === 0 ? new Sphere(new Vector3(mx, yc, mz), 0) : new Sphere(new Vector3((b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2 + maxH * 0.5, (b.z0 + b.z1) / 2), Math.hypot((b.x1 - b.x0) / 2, (b.y1 - b.y0) / 2 + maxH * 0.5, (b.z1 - b.z0) / 2) + maxH + GRASS_CULL_PAD_M),
     }));
-    tiles.push({ mesh, cx, cz, count, lods, lod: 2, cells, cellOf, keptMask: (1 << cells.length) - 1, src: null });
+    const vergeOf = vergeFlags.slice(0, count);
+    let vergeBlades = 0;
+    for (let i = 0; i < count; i++) vergeBlades += vergeOf[i];
+    tiles.push({ mesh, cx, cz, count, lods, lod: 2, cells, cellOf, vergeOf, vergeBlades, wantVerge: true, vergeKept: true, keptMask: (1 << cells.length) - 1, src: null });
     total += count;
     onProgress((ti + 1) / tileCoords.length);
     if (ti % 6 === 5) await new Promise<void>((r) => setTimeout(r, 0));
@@ -867,6 +948,8 @@ export async function buildGrass(ctx: WorldContext, field: VegField, material: M
     const d2 = lodDistances[2] * scale;
     for (const t of tiles) {
       const d = Math.hypot(camPos.x - (t.cx * TILE + TILE / 2), camPos.z - (t.cz * TILE + TILE / 2)) - halfDiag;
+      // the walked verge's near tier (VERGE_NEAR_M): `cull()` rewrites the stream when this flips
+      t.wantVerge = t.vergeBlades === 0 || d < VERGE_NEAR_M * scale;
       const lod = d < d0 ? 0 : d < d1 ? 1 : 2;
       if (lod !== t.lod) {
         t.lod = lod;
@@ -900,7 +983,7 @@ export async function buildGrass(ctx: WorldContext, field: VegField, material: M
     return inside ? 1 : 0;
   };
   /** rewrite the tile's streams with the blades of the cells in `mask` (stream order kept) and draw that many */
-  const rewrite = (t: GrassTile, mask: number) => {
+  const rewrite = (t: GrassTile, mask: number, keepVerge: boolean) => {
     const im = t.mesh;
     const aData = t.lods[0].getAttribute('aData') as InstancedBufferAttribute;
     if (!t.src) {
@@ -916,6 +999,7 @@ export async function buildGrass(ctx: WorldContext, field: VegField, material: M
     let j = 0;
     for (let i = 0; i < t.count; i++) {
       if (!((mask >> t.cellOf[i]) & 1)) continue;
+      if (!keepVerge && t.vergeOf[i]) continue;
       const si = i * 16;
       const dj = j * 16;
       for (let k = 0; k < 16; k++) mat[dj + k] = sm[si + k];
@@ -929,6 +1013,7 @@ export async function buildGrass(ctx: WorldContext, field: VegField, material: M
     im.instanceMatrix.needsUpdate = true;
     aData.needsUpdate = true;
     t.keptMask = mask;
+    t.vergeKept = keepVerge;
     culled.rewrites++;
   };
   const cull = (camera: Camera, force = false) => {
@@ -959,8 +1044,8 @@ export async function buildGrass(ctx: WorldContext, field: VegField, material: M
         culled.trimmed += t.count - t.mesh.count;
         continue;
       }
-      if (mask !== t.keptMask) rewrite(t, mask);
-      if (mask !== all) culled.trimmedTiles++;
+      if (mask !== t.keptMask || t.wantVerge !== t.vergeKept) rewrite(t, mask, t.wantVerge);
+      if (mask !== all || !t.wantVerge) culled.trimmedTiles++;
       culled.blades += t.mesh.count;
       culled.trimmed += t.count - t.mesh.count;
     }

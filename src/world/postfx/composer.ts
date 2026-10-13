@@ -164,6 +164,13 @@ export interface ComposerSettings {
   rayIntensity: number;
   /** contrast curve (pow) applied to the smeared ray buffer so beams read as slabs */
   rayContrast: number;
+  /**
+   * 2026-09-24 — lengths (screen fraction) of the two smear passes over the marched ray buffer.
+   * They were constants; a probe cannot isolate what the smear (as against the march) puts on a
+   * near surface without them. 0 for both disables the smear.
+   */
+  raySmearA: number;
+  raySmearB: number;
   rayColor: Color;
   /** share of the beams laid over open-sky pixels (the dome already carries its own haze glow) */
   raySkyShare: number;
@@ -179,6 +186,21 @@ export interface ComposerSettings {
   /** marched distances (m) between which the mist-layer in-scatter ramps in (start >= end disables the ramp) */
   rayMistNearStart: number;
   rayMistNearEnd: number;
+  /**
+   * 2026-09-24 — the same ramp for the AMBIENT base air (`rayBaseDensity` under `rayAirFade*`),
+   * which had none: it was full strength at every marched distance, so the air a walker stands in
+   * washed everything within ~15 m (the owner's 23:00 shots — the bough as "a dead branch", the
+   * trunk "cut in half", the canopy "strange" looking up). A gained shaft column is exempt at every
+   * distance, so the beams themselves are untouched. start >= end disables it.
+   */
+  rayAirNearStart: number;
+  rayAirNearEnd: number;
+  /**
+   * marched distances (m) over which a gained column's extra gain (shafts.ts, > 1) fades in: nearer
+   * than the first it lights the air like a plain open column, past the second at full gain
+   */
+  rayColumnNearStart: number;
+  rayColumnNearEnd: number;
   /** march length (m) */
   rayMaxDist: number;
   /** Henyey–Greenstein g of the shaft in-scatter: how much the fan brightens toward the sun's side of the frame */
@@ -432,11 +454,27 @@ export function createComposer(opts: ComposerOptions): Composer {
     // Round 33: with the denser mist term carrying the hollow glow, the base air lifts to 3 / 6.5 so
     // the plaza and path (eye level, 1.5–4.5 m of air) keep their edge contrast: A's bottom band
     // p50 stays at −0.018 while the top band gains +0.03
+    // 2026-09-23: thinning this air for the owner's "grey washout" (3 / 6.5 → 6 / 16, and the
+    // beams' gaps with it) was measured against his recording and backed out — at his pose the
+    // corridor's bright mist fell 2.0 → 0.9 % (his r_024: 22.6 %) and its luminance 0.300 → 0.263:
+    // darker trunks in darker grey, not trees in light. His "clear" is bright warm mist with
+    // crowns standing in it (reference/ANALYSIS_CLARITY.md §5, fable-5 lane 10, INBOX 08:40).
     rayAirFadeLo: 3,
     rayAirFadeHi: 6.5,
     // the mist term's ramp along the ray (0 / 0 = off; see RAY_MARCH_FRAG mistNear)
     rayMistNearStart: 0,
     rayMistNearEnd: 0,
+    rayAirNearStart: 4,
+    rayAirNearEnd: 16,
+    raySmearA: 0.08,
+    raySmearB: 0.14,
+    // 2026-09-23 (owner review, the upper house from the plateau): the narrow × 7.5 columns were
+    // tuned to read from shot F at 18–31 m; a walker standing in one (the plateau path passes
+    // 0.7–1.1 m from the (13.3, 10, −14.6) axis) had that gain on every ray from its first step —
+    // a white veil over the house. The gain now fades in over the first metres of the ray. The six
+    // fixed cameras first reach a narrow column 7.7 m (C) to 16.6 m (A) out, past the ramp.
+    rayColumnNearStart: 2,
+    rayColumnNearEnd: 6,
     // and the march stops where the veil has taken over (75 % fog at 40 m)
     rayMaxDist: 40,
     // the frames' beams are strongest looking toward the sun: D (58° off) reads +0.10 in-beam,
@@ -709,6 +747,8 @@ export function createComposer(opts: ComposerOptions): Composer {
       uDensity: { value: new Vector2(settings.rayMistDensity, settings.rayBaseDensity) },
       uAirFade: { value: new Vector2(settings.rayAirFadeLo, settings.rayAirFadeHi) },
       uMistNear: { value: new Vector2(settings.rayMistNearStart, settings.rayMistNearEnd) },
+      uAirNear: { value: new Vector2(settings.rayAirNearStart, settings.rayAirNearEnd) },
+      uColumnNear: { value: new Vector2(settings.rayColumnNearStart, settings.rayColumnNearEnd) },
       // the base air clears above the canopy like the distance haze (same profile as heightfog.ts):
       // a column climbing 30 m into the open air (shot F) carries ≈ half the aerosol of an
       // eye-level column, so the sun-facing upper frame is shafts, not a wash over the crowns
@@ -1085,6 +1125,8 @@ export function createComposer(opts: ComposerOptions): Composer {
       (rayMarchMat.uniforms.uDensity.value as Vector2).set(s.rayMistDensity, s.rayBaseDensity);
       (rayMarchMat.uniforms.uAirFade.value as Vector2).set(s.rayAirFadeLo, s.rayAirFadeHi);
       (rayMarchMat.uniforms.uMistNear.value as Vector2).set(s.rayMistNearStart, s.rayMistNearEnd);
+      (rayMarchMat.uniforms.uAirNear.value as Vector2).set(s.rayAirNearStart, s.rayAirNearEnd);
+      (rayMarchMat.uniforms.uColumnNear.value as Vector2).set(s.rayColumnNearStart, s.rayColumnNearEnd);
       rayMarchMat.uniforms.uExtinction.value = s.rayExtinction;
       rayMarchMat.uniforms.uMaxDist.value = s.rayMaxDist;
       rayMarchMat.uniforms.uAnisotropy.value = s.rayAnisotropy;
@@ -1099,7 +1141,7 @@ export function createComposer(opts: ComposerOptions): Composer {
       pass(rayMarchMat, rayA);
       const fan = rayBlurMat.uniforms.uFan.value as Vector4;
       rayBlurMat.uniforms.tSrc.value = rayA.texture;
-      rayBlurMat.uniforms.uLength.value = 0.08;
+      rayBlurMat.uniforms.uLength.value = s.raySmearA;
       rayBlurMat.uniforms.uGamma.value = 1;
       fan.w = 0;
       pass(rayBlurMat, rayB);
@@ -1107,7 +1149,7 @@ export function createComposer(opts: ComposerOptions): Composer {
       // already smooth, and a longer smear blurred the beams into one broad gradient; the
       // screen-anchored fan is laid over this last pass
       rayBlurMat.uniforms.tSrc.value = rayB.texture;
-      rayBlurMat.uniforms.uLength.value = 0.14;
+      rayBlurMat.uniforms.uLength.value = s.raySmearB;
       rayBlurMat.uniforms.uGamma.value = s.rayContrast;
       const lean = (s.fanLeanDeg * Math.PI) / 180;
       fan.set(Math.sin(lean), Math.cos(lean), W / H, s.fanMix);
@@ -1280,6 +1322,8 @@ export function createComposer(opts: ComposerOptions): Composer {
       godRayMaxDistM: settings.rayMaxDist,
       godRayAirFadeM: [settings.rayAirFadeLo, settings.rayAirFadeHi],
       godRayMistNearM: [settings.rayMistNearStart, settings.rayMistNearEnd],
+      godRayAirNearM: [settings.rayAirNearStart, settings.rayAirNearEnd],
+      godRayColumnNearM: [settings.rayColumnNearStart, settings.rayColumnNearEnd],
       godRayAnisotropy: settings.rayAnisotropy,
       godRayContrastPow: settings.rayContrast,
       godRayGapFrequencyPerM: settings.beamFrequency,
