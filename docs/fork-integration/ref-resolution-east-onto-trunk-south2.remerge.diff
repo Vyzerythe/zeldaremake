@@ -1,0 +1,272 @@
+76a55708136ead30e23554bf6aaf742b4b4e0f84 Merge remote-tracking branch 'upstream/agent/fable-cursor-exp-east' into HEAD
+
+diff --git a/gauntlet/scripts/playtest.mjs b/gauntlet/scripts/playtest.mjs
+remerge CONFLICT (content): Merge conflict in gauntlet/scripts/playtest.mjs
+index 0f50caf0..497aff41 100644
+--- a/gauntlet/scripts/playtest.mjs
++++ b/gauntlet/scripts/playtest.mjs
+@@ -819,7 +819,6 @@ async function walkScenario(page, results) {
+     // round 56 (expansion-south): out of the plaza down the south approach, between the giants'
+     // roots to the ravine, over the rope bridge on its axis and into the hollow log to near its glow
+     ['south-bridge-to-log', [[0.5, 3], [0.8, 10], [1, 16], [-0.5, 17.2], [-1.2, 19.4], [-1.32, 21.6], [-0.8, 23.55], [0.4, 25.15], [2.0, 26.55], [3.3, 27.9], [3.68, 28.95], sf.bridge(-0.6), sf.bridge(1.4), sf.bridge(4.1), sf.bridge(6.9), sf.bridge(9.8), sf.bridge(12.2), sf.bridge(sf.len + 0.5), [4.14, 45.2], sf.log(0), sf.log(2), sf.log(4.8)], 2400],
+-<<<<<<< 5ff46ab9 (Merge remote-tracking branch 'upstream/agent/fable-cursor-exp-south2' into HEAD)
+     // exp-south2: off the path up the waystation's steps onto its floor (standing on it, at its
+     // height) and out again, along the verge north of the toll pile to the bridge head, onto the
+     // keeper's gallery at its entrance, round the hut over the gorge, down the east step and back
+@@ -828,7 +827,6 @@ async function walkScenario(page, results) {
+     // exp-south2: the way back — from the log's dead end (the exit's glade beyond the roots) out of
+     // the mouth, over the bridge, round plaza-south's foot and up the south approach to the plaza
+     ['south-log-to-village', [sf.log(4.8), sf.log(2), sf.log(0), [4.14, 45.2], sf.bridge(sf.len + 0.5), sf.bridge(12.2), sf.bridge(9.8), sf.bridge(6.9), sf.bridge(4.1), sf.bridge(1.4), sf.bridge(-0.6), [3.68, 28.95], [3.3, 27.9], [2.0, 26.55], [0.4, 25.15], [-0.8, 23.55], [-1.32, 21.6], [-1.2, 19.4], [-0.5, 17.2], [1, 16], [0.8, 10], [0.5, 3]], 2400],
+-=======
+     // round 56 (exp-east): up the main flight onto the plateau, then the east lane's stepping stones
+     // (layout EXPANSION_EAST.lane) through the trees, past the shop's door and counter, across the
+     // green between the houses to the lookout's bench on the south lip
+@@ -838,7 +836,6 @@ async function walkScenario(page, results) {
+     ['east-tall-deck', [[42.6, -0.3], [43.0, 2.3], [44.58, 2.28], [45.58, 2.25], [47.33, 2.19], [49.9, 2.1], [47.4, 2.18], [45.58, 2.25], [43.2, 2.3]], 900],
+     // the small house's spur (layout EXPANSION_EAST.spurs[2]) from the lane to its doorstep and back
+     ['east-small-door', [[38.27, -1.52], [37.65, -0.05], [37.0, 1.4], [35.96, 2.14], [37.0, 1.4], [38.27, -1.52]], 900],
+->>>>>>> dd29609b (exp-east README: the final results on 5dc77784 (canonical 2b15f687) — perf against canonical, hero diffs, walk routes, play probe, known issues, the 50 checks scored 173 / 200; new sheets, each under 400 KB)
+     // 2026-09-24 (expansion-north): from the second clearing up the ledge flight, past the grove's
+     // sign and up its flight, along the trail to the shelf and the trunk house's door, back across
+     // the yard, up the gangway onto the stilt house's veranda, round it the south way (past the
+diff --git a/src/audio/index.ts b/src/audio/index.ts
+remerge CONFLICT (content): Merge conflict in src/audio/index.ts
+index 92a61297..1ceba505 100644
+--- a/src/audio/index.ts
++++ b/src/audio/index.ts
+@@ -18,11 +18,7 @@ import type { Wind } from '../world/wind/wind';
+ import type { PlayerHandle } from '../world/character/player';
+ import { surfaceMask } from '../world/terrain/heightfield';
+ import { forestFloorZone } from '../world/terrain/material';
+-<<<<<<< 5ff46ab9 (Merge remote-tracking branch 'upstream/agent/fable-cursor-exp-south2' into HEAD)
+-import { EXPANSION, EXPANSION_NORTH, EXPANSION_SOUTH, EXPANSION_SOUTH_DWELLINGS, LAYOUT, northGangway } from '../world/layout';
+-=======
+-import { EXPANSION, EXPANSION_EAST, EXPANSION_NORTH, EXPANSION_SOUTH, LAYOUT, eastDeckPlan, northGangway } from '../world/layout';
+->>>>>>> dd29609b (exp-east README: the final results on 5dc77784 (canonical 2b15f687) — perf against canonical, hero diffs, walk routes, play probe, known issues, the 50 checks scored 173 / 200; new sheets, each under 400 KB)
++import { eastDeckPlan, EXPANSION, EXPANSION_EAST, EXPANSION_NORTH, EXPANSION_SOUTH, EXPANSION_SOUTH_DWELLINGS, LAYOUT, northGangway } from '../world/layout';
+ import { createBuses, createRng, voices as liveVoices, MASTER_LEVEL, type Buses } from './graph';
+ import { createAmbience, type Ambience, type AmbienceLayer, type AmbienceStats, type Vec3 } from './ambience';
+ import { createFootsteps, RUN_GROUND_SPEED, WALK_SPEED, type Footsteps, type FootstepStats, type Surface } from './footsteps';
+diff --git a/src/audio/surfaces.test.mjs b/src/audio/surfaces.test.mjs
+remerge CONFLICT (content): Merge conflict in src/audio/surfaces.test.mjs
+index 23ba37c7..1e58bbf3 100644
+--- a/src/audio/surfaces.test.mjs
++++ b/src/audio/surfaces.test.mjs
+@@ -42,11 +42,7 @@ function loadTs(file) {
+ 
+ const here = path.dirname(new URL(import.meta.url).pathname);
+ const { surfaceAt } = loadTs(path.join(here, 'index.ts'));
+-<<<<<<< 5ff46ab9 (Merge remote-tracking branch 'upstream/agent/fable-cursor-exp-south2' into HEAD)
+-const { LAYOUT, EXPANSION, EXPANSION_SOUTH, EXPANSION_SOUTH_DWELLINGS, EXPANSION_NORTH, northGangway } = loadTs(path.join(here, '../world/layout.ts'));
+-=======
+-const { LAYOUT, EXPANSION, EXPANSION_SOUTH, EXPANSION_NORTH, northGangway, EXPANSION_EAST, eastDeckPlan } = loadTs(path.join(here, '../world/layout.ts'));
+->>>>>>> dd29609b (exp-east README: the final results on 5dc77784 (canonical 2b15f687) — perf against canonical, hero diffs, walk routes, play probe, known issues, the 50 checks scored 173 / 200; new sheets, each under 400 KB)
++const { LAYOUT, EXPANSION, EXPANSION_SOUTH, EXPANSION_SOUTH_DWELLINGS, EXPANSION_NORTH, northGangway, EXPANSION_EAST, eastDeckPlan } = loadTs(path.join(here, '../world/layout.ts'));
+ 
+ /** rotate (u along, v across) in a thing's own frame into the world */
+ const inFrame = (x, z, yaw, u, v) => [x + Math.cos(yaw) * u - Math.sin(yaw) * v, z + Math.sin(yaw) * u + Math.cos(yaw) * v];
+@@ -154,7 +150,6 @@ test('the ground around them is still the ground', () => {
+   assert.equal(surfaceAt(c.x, c.z + c.radius + 2).surface, 'leaf', 'the forest floor outside the clearing');
+   const wh = EXPANSION.westHouse;
+   assert.notEqual(surfaceAt(wh.host[0] + wh.radius + 1.5, wh.host[1]).surface, 'wood', 'the ground off the west house platform');
+-<<<<<<< 5ff46ab9 (Merge remote-tracking branch 'upstream/agent/fable-cursor-exp-south2' into HEAD)
+   const K = EXPANSION_SOUTH_DWELLINGS.keeper;
+   const north = surfaceAt(K.centre[0] + Math.cos((270 * Math.PI) / 180) * 1.8, K.centre[1] + Math.sin((270 * Math.PI) / 180) * 1.8).surface;
+   assert.ok(north !== 'wood' && north !== 'bridge', `the ground on the keeper's hut's landward side, off the gallery's arc, sounds like ${north}`);
+@@ -166,10 +161,8 @@ test('the ground around them is still the ground', () => {
+   const wYaw = (W.facingDeg * Math.PI) / 180;
+   const front = surfaceAt(W.centre[0] + Math.sin(wYaw) * 1.7, W.centre[1] + Math.cos(wYaw) * 1.7).surface;
+   assert.ok(front !== 'wood', `the path in front of the waystation's step sounds like ${front}`);
+-=======
+   const ed = eastDeckPlan();
+   assert.notEqual(surfaceAt(...ed.at(EXPANSION_EAST.tallDeck.outer + 1.0, 0)).surface, 'wood', 'the ground a metre off the east deck\u2019s outer railing');
+->>>>>>> dd29609b (exp-east README: the final results on 5dc77784 (canonical 2b15f687) — perf against canonical, hero diffs, walk routes, play probe, known issues, the 50 checks scored 173 / 200; new sheets, each under 400 KB)
+ });
+ 
+ test('every surface the footstep designer knows is reachable somewhere in the world', () => {
+diff --git a/src/world/layout.ts b/src/world/layout.ts
+remerge CONFLICT (content): Merge conflict in src/world/layout.ts
+index 58e0bb7f..b5b9b8bc 100644
+--- a/src/world/layout.ts
++++ b/src/world/layout.ts
+@@ -1054,7 +1054,6 @@ export function inExpansionSouth(x: number, z: number): boolean {
+ }
+ 
+ /**
+-<<<<<<< 5ff46ab9 (Merge remote-tracking branch 'upstream/agent/fable-cursor-exp-south2' into HEAD)
+  * exp-south2 (the owner, 2026-09-24 06:07 UTC: "more structures along the path further down"):
+  * the people who live on the way out, built by structures/expansionSouthDwellings.ts. Apart from
+  * `EXPANSION_SOUTH` so nothing that iterates it re-rolls; both stand in the wedge `plaza-south`'s
+@@ -1131,7 +1130,6 @@ export function inSouthDwelling(x: number, z: number, pad = 0): boolean {
+ }
+ 
+ /**
+-=======
+  * The east lane (owner, 2026-09-23: "no expansion to the environment past the stuff"): the flat
+  * 5.2–5.9 m plateau the main stairway climbs to becomes a Kokiri lane — a stepping-stone path from
+  * the head of the stairs east through the gap between the plateau's tall trees, three tree-trunk
+@@ -1401,7 +1399,6 @@ export const EAST_BOX = (() => {
+ })();
+ 
+ /**
+->>>>>>> dd29609b (exp-east README: the final results on 5dc77784 (canonical 2b15f687) — perf against canonical, hero diffs, walk routes, play probe, known issues, the 50 checks scored 173 / 200; new sheets, each under 400 KB)
+  * 2026-09-24 (expansion-north; owner 06:07: "more structures along the path further down"): the
+  * GROVE above the ledge terrace. A stone flight climbs the bank from the terrace's north edge, a
+  * stepping-stone trail winds on up between the north stand's trunks, and a level shelf cut into
+diff --git a/src/world/structures/index.ts b/src/world/structures/index.ts
+remerge CONFLICT (content): Merge conflict in src/world/structures/index.ts
+index a8fe027f..bbd8a235 100644
+--- a/src/world/structures/index.ts
++++ b/src/world/structures/index.ts
+@@ -7,11 +7,7 @@
+  * fixed cameras; all ground contact is sampled through `ctx.terrain`;
+  * randomness only through `ctx.rng.fork` / Noise2D; textures through `ctx.textures`.
+  */
+-<<<<<<< 5ff46ab9 (Merge remote-tracking branch 'upstream/agent/fable-cursor-exp-south2' into HEAD)
+-import { Box3, Group, type Camera, type Mesh, type Object3D, type PointLight } from 'three';
+-=======
+-import { Box3, Group, Vector3, type BufferGeometry, type InstancedMesh, type Material, type Mesh, type Object3D, type PointLight } from 'three';
+->>>>>>> dd29609b (exp-east README: the final results on 5dc77784 (canonical 2b15f687) — perf against canonical, hero diffs, walk routes, play probe, known issues, the 50 checks scored 173 / 200; new sheets, each under 400 KB)
++import { Box3, type BufferGeometry, type Camera, Group, type InstancedMesh, type Material, type Mesh, type Object3D, type PointLight, Vector3 } from 'three';
+ import type { WorldContext, WorldSystem } from '../system';
+ import { ROPE_FENCES, LANTERN_POSTS, type FenceDef } from '../layout';
+ import { buildCameraSolids, limbSpheres } from './cameraSolids';
+@@ -26,13 +22,8 @@ import { EAST_FAR, EAST_FAR_LOD_K, EAST_ZONE, eastFarCell, inEastFar, inEastZone
+ import { SOUTH_VISIBLE_M } from '../util/expansionLocality';
+ import { FAR_BANK_BEND, FAR_BANK_BEND_EAST, FAR_BANK_ZONE, farBankDistance, farBankLodAt } from '../util/farBankLocality';
+ import { consolidateStaticMeshes } from './geometry';
+-<<<<<<< 5ff46ab9 (Merge remote-tracking branch 'upstream/agent/fable-cursor-exp-south2' into HEAD)
+-import { buildHouse, type HouseSharedMaterials } from './house';
+-import { restPodMeshes, swingLanterns, type LanternRig } from './lantern';
+-=======
+ import { buildHouse, HOUSE_CLONES, type HouseSharedMaterials } from './house';
+-import { swingLanterns, type LanternRig } from './lantern';
+->>>>>>> dd29609b (exp-east README: the final results on 5dc77784 (canonical 2b15f687) — perf against canonical, hero diffs, walk routes, play probe, known issues, the 50 checks scored 173 / 200; new sheets, each under 400 KB)
++import { restPodMeshes, swingLanterns, type LanternRig } from './lantern';
+ import { buildLanternBranch } from './lanternBranch';
+ import { buildLanternPost } from './lanternPost';
+ import { buildLogArch } from './logArch';
+@@ -248,11 +239,7 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
+ 
+   // the play camera's solids (cameraSolids.ts), voxelised from the parts by name before the merges
+   // below rename them; never under a headless capture
+-<<<<<<< 5ff46ab9 (Merge remote-tracking branch 'upstream/agent/fable-cursor-exp-south2' into HEAD)
+-  const cameraSolids = ctx.headless ? null : buildCameraSolids([group, north, expansion.group, south.group, grove.group], limbSpheres(ctx.shared.lanternLimb), [...grove.cameraWalls, ...dwellings.cameraWalls]);
+-=======
+-  const cameraSolids = ctx.headless ? null : buildCameraSolids([group, north, expansion.group, south.group, grove.group, east.group], limbSpheres(ctx.shared.lanternLimb), grove.cameraWalls);
+->>>>>>> dd29609b (exp-east README: the final results on 5dc77784 (canonical 2b15f687) — perf against canonical, hero diffs, walk routes, play probe, known issues, the 50 checks scored 173 / 200; new sheets, each under 400 KB)
++  const cameraSolids = ctx.headless ? null : buildCameraSolids([group, north, expansion.group, south.group, grove.group, east.group], limbSpheres(ctx.shared.lanternLimb), [...grove.cameraWalls, ...dwellings.cameraWalls]);
+   if (cameraSolids) ctx.shared.cameraSolids = { solid: cameraSolids.solid, slim: cameraSolids.slim, walls: cameraSolids.walls };
+ 
+   // ---- draw-call budget: fold the static parts into one mesh per material (+ shadow flags) ----
+@@ -322,7 +309,6 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
+     draws.after += d.after;
+     draws.merged += d.merged;
+   }
+-<<<<<<< 5ff46ab9 (Merge remote-tracking branch 'upstream/agent/fable-cursor-exp-south2' into HEAD)
+   // exp-south2: from the bridge head, the bridge, the far bank, the log and the cleft
+   // (util/farBankLocality.ts) the village stands past the south giants' boles or across the gorge,
+   // in the haze (`farBank.nearestVillageM` below): there its structures cast no shadow and its roof
+@@ -366,7 +352,6 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
+     for (const m of farPods) m.visible = inside;
+   };
+   setFarBank(ctx.camera);
+-=======
+   const eastDraws = east.consolidate();
+   group.add(east.group);
+   east.update(ctx.camera);
+@@ -488,7 +473,6 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
+     for (const l of eastFarLods) l.set(far);
+   };
+   scopeEastFar(ctx.camera.position);
+->>>>>>> dd29609b (exp-east README: the final results on 5dc77784 (canonical 2b15f687) — perf against canonical, hero diffs, walk routes, play probe, known issues, the 50 checks scored 173 / 200; new sheets, each under 400 KB)
+   /**
+    * The merged buckets' culling bounds (audit, round 20): what three.js frustum-tests each static
+    * draw against — geometry bounding sphere at the identity transform — with its triangle count and
+@@ -500,13 +484,8 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
+     const visit = (root: Object3D, which: 'hero' | 'distant' | 'north' | 'expansion' | 'south' | 'grove' | 'east') => {
+       root.traverse((o) => {
+         const m = o as Mesh;
+-<<<<<<< 5ff46ab9 (Merge remote-tracking branch 'upstream/agent/fable-cursor-exp-south2' into HEAD)
+         if (!m.isMesh || farPodSet.has(m)) return;
+-        if (which === 'hero' && (!m.name.startsWith('merged:') || distant.group.getObjectById(m.id) || north.getObjectById(m.id) || expansion.group.getObjectById(m.id) || south.group.getObjectById(m.id) || grove.group.getObjectById(m.id))) return;
+-=======
+-        if (!m.isMesh) return;
+         if (which === 'hero' && (!m.name.startsWith('merged:') || distant.group.getObjectById(m.id) || north.getObjectById(m.id) || expansion.group.getObjectById(m.id) || south.group.getObjectById(m.id) || grove.group.getObjectById(m.id) || east.group.getObjectById(m.id))) return;
+->>>>>>> dd29609b (exp-east README: the final results on 5dc77784 (canonical 2b15f687) — perf against canonical, hero diffs, walk routes, play probe, known issues, the 50 checks scored 173 / 200; new sheets, each under 400 KB)
+         const g = m.geometry;
+         if (!g.boundingSphere) g.computeBoundingSphere();
+         const s = g.boundingSphere!;
+@@ -543,11 +522,7 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
+     for (const b of bases) gap = Math.max(gap, Math.abs(b[1] - ctx.terrain.height(b[0], b[2])));
+     return gap;
+   };
+-<<<<<<< 5ff46ab9 (Merge remote-tracking branch 'upstream/agent/fable-cursor-exp-south2' into HEAD)
+-  /** meshes (= draw calls when all are in view) and triangles owned by this system (the far-bank pod folds stand in for pods counted here) */
+-=======
+-  /** meshes (= draw calls when all are in view) and the triangles their colour pass submits */
+->>>>>>> dd29609b (exp-east README: the final results on 5dc77784 (canonical 2b15f687) — perf against canonical, hero diffs, walk routes, play probe, known issues, the 50 checks scored 173 / 200; new sheets, each under 400 KB)
++  /** meshes (= draw calls when all are in view) and the triangles their colour pass submits (the far-bank pod folds stand in for pods counted here) */
+   const budget = () => {
+     let meshes = 0;
+     let triangles = 0;
+@@ -763,11 +738,8 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
+       expansion.far.visible = expansion.farVisible(c.camera);
+       south.group.visible = southShown(c.camera);
+       grove.group.visible = grove.visible(c.camera);
+-<<<<<<< 5ff46ab9 (Merge remote-tracking branch 'upstream/agent/fable-cursor-exp-south2' into HEAD)
+       setFarBank(c.camera);
+-=======
+       east.update(c.camera);
+->>>>>>> dd29609b (exp-east README: the final results on 5dc77784 (canonical 2b15f687) — perf against canonical, hero diffs, walk routes, play probe, known issues, the 50 checks scored 173 / 200; new sheets, each under 400 KB)
+     },
+     onCameraMove(camera) {
+       scopeVillageTufts(camera.position.x, camera.position.z);
+@@ -779,11 +751,8 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
+       expansion.far.visible = expansion.farVisible(camera);
+       south.group.visible = southShown(camera);
+       grove.group.visible = grove.visible(camera);
+-<<<<<<< 5ff46ab9 (Merge remote-tracking branch 'upstream/agent/fable-cursor-exp-south2' into HEAD)
+       setFarBank(camera);
+-=======
+       east.update(camera);
+->>>>>>> dd29609b (exp-east README: the final results on 5dc77784 (canonical 2b15f687) — perf against canonical, hero diffs, walk routes, play probe, known issues, the 50 checks scored 173 / 200; new sheets, each under 400 KB)
+     },
+     dispose() {
+       // one-shot: every geometry, material and owned texture is released exactly once, however
+diff --git a/src/world/structures/lantern.ts b/src/world/structures/lantern.ts
+remerge CONFLICT (content): Merge conflict in src/world/structures/lantern.ts
+index 84aaa2d1..f290af52 100644
+--- a/src/world/structures/lantern.ts
++++ b/src/world/structures/lantern.ts
+@@ -32,11 +32,7 @@
+  * modulates round POD_MAP_MEAN and the tints below are divided by it, the emissive's body rows
+  * keep the round-11 gradient's mean (see podEmissiveTexture).
+  */
+-<<<<<<< 5ff46ab9 (Merge remote-tracking branch 'upstream/agent/fable-cursor-exp-south2' into HEAD)
+-import { BufferGeometry, CatmullRomCurve3, Float32BufferAttribute, LineCurve3, Matrix4, Mesh, Object3D, Quaternion, TorusGeometry, Vector3, type Material } from 'three';
+-=======
+-import { BufferGeometry, CatmullRomCurve3, Float32BufferAttribute, LineCurve3, Matrix4, Mesh, type MeshStandardMaterial, Object3D, TorusGeometry, Vector3 } from 'three';
+->>>>>>> dd29609b (exp-east README: the final results on 5dc77784 (canonical 2b15f687) — perf against canonical, hero diffs, walk routes, play probe, known issues, the 50 checks scored 173 / 200; new sheets, each under 400 KB)
++import { BufferGeometry, CatmullRomCurve3, Float32BufferAttribute, LineCurve3, type Material, Matrix4, Mesh, type MeshStandardMaterial, Object3D, Quaternion, TorusGeometry, Vector3 } from 'three';
+ import type { Rng } from '../util/prng';
+ import { Noise2D, clamp, lerp, smoothstep } from '../util/noise';
+ import { TAU, faceTowards, gridSurface, merge, setColorAttribute, setFloatAttribute, sweepTube } from './geometry';
+diff --git a/src/world/terrain/heightfield.ts b/src/world/terrain/heightfield.ts
+remerge CONFLICT (content): Merge conflict in src/world/terrain/heightfield.ts
+index 1ee35410..c6b847ac 100644
+--- a/src/world/terrain/heightfield.ts
++++ b/src/world/terrain/heightfield.ts
+@@ -7,11 +7,7 @@
+  * Owner: terrain agent. Interface (`Terrain`) is frozen; implementation may be refined.
+  */
+ import { Vector3 } from 'three';
+-<<<<<<< 5ff46ab9 (Merge remote-tracking branch 'upstream/agent/fable-cursor-exp-south2' into HEAD)
+-import { EXPANSION, EXPANSION_BOX, EXPANSION_SOUTH, EXPANSION_SOUTH_BOXES, EXPANSION_STAIRS, LAYOUT, expansionSteppingStones, houseSteppingStones, inExpansionSouth, inSouthDwelling, southBankFrameVectors, southBridgeFrame, southPathHalfWidth, southPathLine, type StairDef } from '../layout';
+-=======
+-import { EAST_BOX, EXPANSION, EXPANSION_BOX, EXPANSION_EAST, EXPANSION_SOUTH, EXPANSION_SOUTH_BOXES, EXPANSION_STAIRS, LAYOUT, eastDeckPlan, eastHouseBlocks, eastShopSpots, eastSteppingStones, expansionSteppingStones, houseSteppingStones, inExpansionSouth, southBankFrameVectors, southBridgeFrame, southPathHalfWidth, southPathLine, type StairDef } from '../layout';
+->>>>>>> dd29609b (exp-east README: the final results on 5dc77784 (canonical 2b15f687) — perf against canonical, hero diffs, walk routes, play probe, known issues, the 50 checks scored 173 / 200; new sheets, each under 400 KB)
++import { EAST_BOX, eastDeckPlan, eastHouseBlocks, eastShopSpots, eastSteppingStones, EXPANSION, EXPANSION_BOX, EXPANSION_EAST, EXPANSION_SOUTH, EXPANSION_SOUTH_BOXES, EXPANSION_STAIRS, expansionSteppingStones, houseSteppingStones, inExpansionSouth, inSouthDwelling, LAYOUT, southBankFrameVectors, southBridgeFrame, southPathHalfWidth, southPathLine, type StairDef } from '../layout';
+ import { WORLD } from '../config';
+ import { Noise2D, smoothstep, clamp, lerp } from '../util/noise';
+ import { BERM_BELOW_AXIS, bankHeight, bridgeDeckY, bridgeLocal, ravineProfile, tunnelBerm, tunnelCarve, tunnelFootprint, tunnelLocal } from './south';

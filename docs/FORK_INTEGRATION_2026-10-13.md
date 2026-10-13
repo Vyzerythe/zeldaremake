@@ -1,5 +1,7 @@
 # Fork integration of upstream branches (2026-10-13)
 
+> Next steps and how to continue locally: [HANDOFF_2026-10-13_fork-integration.md](HANDOFF_2026-10-13_fork-integration.md).
+
 This records what the fork (`Vyzerythe/zeldaremake`) took from upstream (`Leonxlnx/zeldaremake`),
 what it left out, and why. The analysis covered all 342 upstream branches and 214 pull-request
 refs. The GitHub API was not available for the upstream repo, so any pull request that still has

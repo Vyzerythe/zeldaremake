@@ -1,0 +1,498 @@
+8e5222267127d33469ab75a4d3540b545dd97705 Merge remote-tracking branch 'upstream/agent/fable-cursor-exp-ruins' into HEAD
+
+diff --git a/gauntlet/scripts/playtest.mjs b/gauntlet/scripts/playtest.mjs
+remerge CONFLICT (content): Merge conflict in gauntlet/scripts/playtest.mjs
+index b95a87d7..d01c4837 100644
+--- a/gauntlet/scripts/playtest.mjs
++++ b/gauntlet/scripts/playtest.mjs
+@@ -151,7 +151,6 @@ const groveFrames = () => {
+   };
+ };
+ /**
+-<<<<<<< 76a55708 (Merge remote-tracking branch 'upstream/agent/fable-cursor-exp-east' into HEAD)
+  * layout.ts EXPANSION_EAST (the east lane): the tall house's trunk and door bearing with its side
+  * deck (`tallDeck`, in the trunk's frame as `eastDeckPlan` builds it), the lookout's three rope
+  * runs, the stumps and the bench, the three trunks, and walk spots on the lane, its spurs and the
+@@ -182,7 +181,7 @@ const eastFrames = () => {
+     stepD: (D.stepInner + D.stepOuter) / 2,
+   };
+ };
+-=======
++/**
+  * layout.ts EXPANSION_RUINS (round 57): the trail's nodes from the west house's discs to the
+  * outcrop, the stair (base, run west), the arch, the terrace block (its open edges held
+  * `edge` m out, terrain/ruins.ts TERRACE_EDGE_M) and the lantern posts
+@@ -206,7 +205,6 @@ function waterStairRoute() {
+   const down = [[-63.6, -2.65], [x, -2.65], [x, -1.9], [x, -0.8], [-62.9, W.z], [-66.2, W.z], [W.foot - 1.3, W.z], [-72.6, -0.8], [-73.3, -0.7]];
+   return [...down, [W.foot - 1.3, W.z], [-66.2, W.z], [-62.9, W.z], [x, -1.3], [x, -2.0], [x, -2.65], [-63.6, -2.65]];
+ }
+->>>>>>> d86a1767 (exp-ruins README: the water stair's 1.18 m sole reading located and fixed (e56a4c0f; its worst sole now a 15.5 cm float, no boot corner below the ground); walk, probes and camcheck re-run on e56a4c0f's build (2b15f687 merged: paths and cameras frame for frame as before, 80/80 probes); #43 kept at 3 with the floats left named; total 158/200, NOT READY)
+ const flightFrame = (f) => {
+   const l = Math.hypot(f.dir[0], f.dir[1]);
+   const dx = f.dir[0] / l;
+@@ -903,7 +901,6 @@ async function walkScenario(page, results) {
+     results.northProbes = await northProbes(page);
+     fs.writeFileSync(path.join(out, 'playtest.json'), JSON.stringify(results, null, 1));
+   }
+-<<<<<<< 76a55708 (Merge remote-tracking branch 'upstream/agent/fable-cursor-exp-east' into HEAD)
+   if (!pickRoutes || ['stairs-to-east-lookout', 'east-tall-deck', 'east-small-door'].some((r) => pickRoutes.has(r))) {
+     results.eastProbes = await eastProbes(page);
+     fs.writeFileSync(path.join(out, 'playtest.json'), JSON.stringify(results, null, 1));
+@@ -961,13 +958,11 @@ async function eastProbes(page) {
+     return { where: p.where, a: +p.a.toFixed(2), c: p.c, x: +p.at[0].toFixed(2), z: +p.at[1].toFixed(2), walk: +g.walk.toFixed(3), terrain: +g.terrain.toFixed(3), blocked: g.blocked, expect: p.expect, ok };
+   });
+   return { ok: rows.every((r) => r.ok), failed: rows.filter((r) => !r.ok).length, rows };
+-=======
+   if (!pickRoutes || ['plaza-to-ruins-terrace', 'ruins-trail-to-shore', 'ruins-water-stair'].some((r) => pickRoutes.has(r))) {
+     results.ruinsProbes = await ruinsProbes(page);
+     results.ruinsCamera = await ruinsCamera(page);
+     fs.writeFileSync(path.join(out, 'playtest.json'), JSON.stringify(results, null, 1));
+   }
+->>>>>>> d86a1767 (exp-ruins README: the water stair's 1.18 m sole reading located and fixed (e56a4c0f; its worst sole now a 15.5 cm float, no boot corner below the ground); walk, probes and camcheck re-run on e56a4c0f's build (2b15f687 merged: paths and cameras frame for frame as before, 80/80 probes); #43 kept at 3 with the floats left named; total 158/200, NOT READY)
+ }
+ 
+ /**
+diff --git a/src/audio/index.ts b/src/audio/index.ts
+remerge CONFLICT (content): Merge conflict in src/audio/index.ts
+index 1f041f57..394e08ec 100644
+--- a/src/audio/index.ts
++++ b/src/audio/index.ts
+@@ -18,12 +18,8 @@ import type { Wind } from '../world/wind/wind';
+ import type { PlayerHandle } from '../world/character/player';
+ import { expansionDiscMask, getTerrain, steppingStoneMask, surfaceMask } from '../world/terrain/heightfield';
+ import { forestFloorZone } from '../world/terrain/material';
+-<<<<<<< 76a55708 (Merge remote-tracking branch 'upstream/agent/fable-cursor-exp-east' into HEAD)
+-import { eastDeckPlan, EXPANSION, EXPANSION_EAST, EXPANSION_NORTH, EXPANSION_SOUTH, EXPANSION_SOUTH_DWELLINGS, LAYOUT, northGangway } from '../world/layout';
+-=======
+ import { buildTrailProfile, inStairCut, inTerrace, onWaterStair, onWaterStairFlight, outcropCover, trailInfluence } from '../world/terrain/ruins';
+-import { EXPANSION, EXPANSION_NORTH, EXPANSION_RUINS, EXPANSION_SOUTH, LAYOUT, inExpansionRuins, northGangway } from '../world/layout';
+->>>>>>> d86a1767 (exp-ruins README: the water stair's 1.18 m sole reading located and fixed (e56a4c0f; its worst sole now a 15.5 cm float, no boot corner below the ground); walk, probes and camcheck re-run on e56a4c0f's build (2b15f687 merged: paths and cameras frame for frame as before, 80/80 probes); #43 kept at 3 with the floats left named; total 158/200, NOT READY)
++import { eastDeckPlan, EXPANSION, EXPANSION_EAST, EXPANSION_NORTH, EXPANSION_RUINS, EXPANSION_SOUTH, EXPANSION_SOUTH_DWELLINGS, LAYOUT, inExpansionRuins, northGangway } from '../world/layout';
+ import { createBuses, createRng, voices as liveVoices, MASTER_LEVEL, type Buses } from './graph';
+ import { createAmbience, type Ambience, type AmbienceLayer, type AmbienceStats, type Vec3 } from './ambience';
+ import { createFootsteps, RUN_GROUND_SPEED, WALK_SPEED, type Footsteps, type FootstepStats, type Surface } from './footsteps';
+@@ -330,9 +326,8 @@ function gatherPods(scene: Scene): Vec3[] {
+   return pods;
+ }
+ 
+-<<<<<<< 76a55708 (Merge remote-tracking branch 'upstream/agent/fable-cursor-exp-east' into HEAD)
+ const EAST_DECK = eastDeckPlan();
+-=======
++
+ /** every `waterfall-plunge` marker (ruins/index.ts: the fall's plunge, a metre over the waterline) */
+ function gatherFalls(scene: Scene): Vec3[] {
+   const falls: Vec3[] = [];
+@@ -344,7 +339,6 @@ function gatherFalls(scene: Scene): Vec3[] {
+   });
+   return falls;
+ }
+->>>>>>> d86a1767 (exp-ruins README: the water stair's 1.18 m sole reading located and fixed (e56a4c0f; its worst sole now a 15.5 cm float, no boot corner below the ground); walk, probes and camcheck re-run on e56a4c0f's build (2b15f687 merged: paths and cameras frame for frame as before, 80/80 probes); #43 kept at 3 with the floats left named; total 158/200, NOT READY)
+ 
+ /**
+  * What Link's boot lands on (owner, 2026-09-22: "his footsteps should correlate where he's
+diff --git a/src/audio/surfaces.test.mjs b/src/audio/surfaces.test.mjs
+remerge CONFLICT (content): Merge conflict in src/audio/surfaces.test.mjs
+index 07c9e592..f938b380 100644
+--- a/src/audio/surfaces.test.mjs
++++ b/src/audio/surfaces.test.mjs
+@@ -42,11 +42,7 @@ function loadTs(file) {
+ 
+ const here = path.dirname(new URL(import.meta.url).pathname);
+ const { surfaceAt } = loadTs(path.join(here, 'index.ts'));
+-<<<<<<< 76a55708 (Merge remote-tracking branch 'upstream/agent/fable-cursor-exp-east' into HEAD)
+-const { LAYOUT, EXPANSION, EXPANSION_SOUTH, EXPANSION_SOUTH_DWELLINGS, EXPANSION_NORTH, northGangway, EXPANSION_EAST, eastDeckPlan } = loadTs(path.join(here, '../world/layout.ts'));
+-=======
+-const { LAYOUT, EXPANSION, EXPANSION_SOUTH, EXPANSION_NORTH, EXPANSION_RUINS, northGangway } = loadTs(path.join(here, '../world/layout.ts'));
+->>>>>>> d86a1767 (exp-ruins README: the water stair's 1.18 m sole reading located and fixed (e56a4c0f; its worst sole now a 15.5 cm float, no boot corner below the ground); walk, probes and camcheck re-run on e56a4c0f's build (2b15f687 merged: paths and cameras frame for frame as before, 80/80 probes); #43 kept at 3 with the floats left named; total 158/200, NOT READY)
++const { LAYOUT, EXPANSION, EXPANSION_SOUTH, EXPANSION_SOUTH_DWELLINGS, EXPANSION_NORTH, EXPANSION_RUINS, northGangway, EXPANSION_EAST, eastDeckPlan } = loadTs(path.join(here, '../world/layout.ts'));
+ 
+ /** rotate (u along, v across) in a thing's own frame into the world */
+ const inFrame = (x, z, yaw, u, v) => [x + Math.cos(yaw) * u - Math.sin(yaw) * v, z + Math.sin(yaw) * u + Math.cos(yaw) * v];
+@@ -123,14 +119,13 @@ function standingPlaces() {
+     for (const t of [0.4, 0.5, 0.6]) p.push([`the rope walk at ${(t * 100).toFixed(0)} % of its span`, N.stilt.host[0] + dx * t, N.stilt.host[1] + dz * t, 'bridge']);
+   }
+ 
+-<<<<<<< 76a55708 (Merge remote-tracking branch 'upstream/agent/fable-cursor-exp-east' into HEAD)
+   // the east lane's tall house: a plank deck round the trunk's side and the plank flight down to the
+   // lane (layout `eastDeckPlan`, in the trunk's frame — `out` from the axis, `along` the deck)
+   const ed = eastDeckPlan();
+   const D = EXPANSION_EAST.tallDeck;
+   for (const along of [ed.walk.along[0], 0, ed.walk.along[1]]) p.push([`the east tall house's deck, ${along.toFixed(1)} m along`, ...ed.at(ed.walk.d, along), 'wood']);
+   for (const u of [0.2, 0.8]) p.push([`its plank flight, ${u} of the way down`, ...ed.at((D.stepInner + D.stepOuter) / 2, -D.half - D.stepRun * u), 'wood']);
+-=======
++
+   // Round 57, the waterfall ruins west of the village: the trail is packed earth the path mask
+   // calls flagstones, the outcrop bare rock the masks call lawn, and the flight, the terrace's
+   // paving and the water stair are masonry the masks know nothing of. Past the pool's waterline he
+@@ -150,7 +145,6 @@ function standingPlaces() {
+   p.push(['the quay along the wall', ws.base[0] - 1.3, ws.base[2], 'stone']);
+   p.push(["the platform at the fall's foot", -73.0, -0.6, 'stone']);
+   for (const [x, z] of [[-56.7, 4.8], [-64.9, 8.35]]) p.push([`the pool's shallows at (${x}, ${z})`, x, z, 'water']);
+->>>>>>> d86a1767 (exp-ruins README: the water stair's 1.18 m sole reading located and fixed (e56a4c0f; its worst sole now a 15.5 cm float, no boot corner below the ground); walk, probes and camcheck re-run on e56a4c0f's build (2b15f687 merged: paths and cameras frame for frame as before, 80/80 probes); #43 kept at 3 with the floats left named; total 158/200, NOT READY)
+   return p;
+ }
+ 
+@@ -176,7 +170,6 @@ test('the ground around them is still the ground', () => {
+   assert.equal(surfaceAt(c.x, c.z + c.radius + 2).surface, 'leaf', 'the forest floor outside the clearing');
+   const wh = EXPANSION.westHouse;
+   assert.notEqual(surfaceAt(wh.host[0] + wh.radius + 1.5, wh.host[1]).surface, 'wood', 'the ground off the west house platform');
+-<<<<<<< 76a55708 (Merge remote-tracking branch 'upstream/agent/fable-cursor-exp-east' into HEAD)
+   const K = EXPANSION_SOUTH_DWELLINGS.keeper;
+   const north = surfaceAt(K.centre[0] + Math.cos((270 * Math.PI) / 180) * 1.8, K.centre[1] + Math.sin((270 * Math.PI) / 180) * 1.8).surface;
+   assert.ok(north !== 'wood' && north !== 'bridge', `the ground on the keeper's hut's landward side, off the gallery's arc, sounds like ${north}`);
+@@ -190,12 +183,10 @@ test('the ground around them is still the ground', () => {
+   assert.ok(front !== 'wood', `the path in front of the waystation's step sounds like ${front}`);
+   const ed = eastDeckPlan();
+   assert.notEqual(surfaceAt(...ed.at(EXPANSION_EAST.tallDeck.outer + 1.0, 0)).surface, 'wood', 'the ground a metre off the east deck\u2019s outer railing');
+-=======
+   // the ruins: the forest floor beside the trail, and the pool's banks above its waterline
+   assert.equal(surfaceAt(-45.0, 2.0).surface, 'grass', 'the forest floor south of the ruins trail');
+   assert.equal(surfaceAt(-52.8, 3.35).surface, 'grass', "the pool's east bank");
+   assert.equal(surfaceAt(-64.9, 9.3).surface, 'grass', "the pool's south bank over the waterline");
+->>>>>>> d86a1767 (exp-ruins README: the water stair's 1.18 m sole reading located and fixed (e56a4c0f; its worst sole now a 15.5 cm float, no boot corner below the ground); walk, probes and camcheck re-run on e56a4c0f's build (2b15f687 merged: paths and cameras frame for frame as before, 80/80 probes); #43 kept at 3 with the floats left named; total 158/200, NOT READY)
+ });
+ 
+ test('every surface the footstep designer knows is reachable somewhere in the world', () => {
+diff --git a/src/world/character/ground.ts b/src/world/character/ground.ts
+remerge CONFLICT (content): Merge conflict in src/world/character/ground.ts
+index dab85c0b..0f6cd54f 100644
+--- a/src/world/character/ground.ts
++++ b/src/world/character/ground.ts
+@@ -11,11 +11,7 @@
+  * tread tops with their nosing overhangs, for the character's footprint planting (glbLink.ts).
+  */
+ import { Box3, BufferAttribute, BufferGeometry, Mesh, type Object3D } from 'three';
+-<<<<<<< 76a55708 (Merge remote-tracking branch 'upstream/agent/fable-cursor-exp-east' into HEAD)
+-import { EXPANSION_EAST, EXPANSION_STAIRS, southBridgeFrame, type Layout } from '../layout';
+-=======
+-import { EXPANSION_RUINS, EXPANSION_STAIRS, southBridgeFrame, type Layout } from '../layout';
+->>>>>>> d86a1767 (exp-ruins README: the water stair's 1.18 m sole reading located and fixed (e56a4c0f; its worst sole now a 15.5 cm float, no boot corner below the ground); walk, probes and camcheck re-run on e56a4c0f's build (2b15f687 merged: paths and cameras frame for frame as before, 80/80 probes); #43 kept at 3 with the floats left named; total 158/200, NOT READY)
++import { EXPANSION_EAST, EXPANSION_RUINS, EXPANSION_STAIRS, type Layout, southBridgeFrame } from '../layout';
+ import { NORTH_STAIRS } from '../layout';
+ import type { SharedGeometry, WalkSpan, WalkSurface } from '../system';
+ import type { WalkEdge } from '../system';
+diff --git a/src/world/structures/index.ts b/src/world/structures/index.ts
+remerge CONFLICT (content): Merge conflict in src/world/structures/index.ts
+index f94cc962..b4114bf0 100644
+--- a/src/world/structures/index.ts
++++ b/src/world/structures/index.ts
+@@ -7,11 +7,7 @@
+  * fixed cameras; all ground contact is sampled through `ctx.terrain`;
+  * randomness only through `ctx.rng.fork` / Noise2D; textures through `ctx.textures`.
+  */
+-<<<<<<< 76a55708 (Merge remote-tracking branch 'upstream/agent/fable-cursor-exp-east' into HEAD)
+-import { Box3, type BufferGeometry, type Camera, Group, type InstancedMesh, type Material, type Mesh, type Object3D, type PointLight, Vector3 } from 'three';
+-=======
+-import { Group, Mesh, type Camera, type Object3D, type PointLight } from 'three';
+->>>>>>> d86a1767 (exp-ruins README: the water stair's 1.18 m sole reading located and fixed (e56a4c0f; its worst sole now a 15.5 cm float, no boot corner below the ground); walk, probes and camcheck re-run on e56a4c0f's build (2b15f687 merged: paths and cameras frame for frame as before, 80/80 probes); #43 kept at 3 with the floats left named; total 158/200, NOT READY)
++import { Box3, type BufferGeometry, type Camera, Group, type InstancedMesh, type Material, Mesh, type Object3D, type PointLight, Vector3 } from 'three';
+ import type { WorldContext, WorldSystem } from '../system';
+ import { ROPE_FENCES, LANTERN_POSTS, type FenceDef } from '../layout';
+ import { buildCameraSolids, limbSpheres } from './cameraSolids';
+@@ -22,13 +18,9 @@ import { buildExpansion, EXPANSION_VISIBLE_M } from './expansion';
+ import { buildExpansionSouth } from './expansionSouth';
+ import { buildSouthDwellings } from './expansionSouthDwellings';
+ import { buildExpansionNorth, GROVE_VISIBLE_M } from './expansionNorth';
+-<<<<<<< 76a55708 (Merge remote-tracking branch 'upstream/agent/fable-cursor-exp-east' into HEAD)
+ import { EAST_FAR, EAST_FAR_LOD_K, EAST_ZONE, eastFarCell, inEastFar, inEastZone } from '../util/eastLane';
+-import { SOUTH_VISIBLE_M } from '../util/expansionLocality';
+-import { FAR_BANK_BEND, FAR_BANK_BEND_EAST, FAR_BANK_ZONE, farBankDistance, farBankLodAt } from '../util/farBankLocality';
+-=======
+ import { SOUTH_VISIBLE_M, villageHiddenFromRuins } from '../util/expansionLocality';
+->>>>>>> d86a1767 (exp-ruins README: the water stair's 1.18 m sole reading located and fixed (e56a4c0f; its worst sole now a 15.5 cm float, no boot corner below the ground); walk, probes and camcheck re-run on e56a4c0f's build (2b15f687 merged: paths and cameras frame for frame as before, 80/80 probes); #43 kept at 3 with the floats left named; total 158/200, NOT READY)
++import { FAR_BANK_BEND, FAR_BANK_BEND_EAST, FAR_BANK_ZONE, farBankDistance, farBankLodAt } from '../util/farBankLocality';
+ import { consolidateStaticMeshes } from './geometry';
+ import { buildHouse, HOUSE_CLONES, type HouseSharedMaterials } from './house';
+ import { restPodMeshes, swingLanterns, type LanternRig } from './lantern';
+@@ -291,7 +283,6 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
+     branchParts.set(m, copy);
+   });
+   const draws = consolidateStaticMeshes(group, (m) => m.name === 'pod-lantern');
+-<<<<<<< 76a55708 (Merge remote-tracking branch 'upstream/agent/fable-cursor-exp-east' into HEAD)
+   /**
+    * The two houses' moss tufts — the caps' cushions and the trunks' furrow tufts (house.ts rounds
+    * 40 / 41), one bucket each — draw within VILLAGE_TUFTS_M of either trunk. Past it most of them
+@@ -308,7 +299,6 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
+     for (const m of villageTufts) m.visible = on;
+   };
+   scopeVillageTufts(ctx.camera.position.x, ctx.camera.position.z);
+-=======
+   const branchZone = new Group();
+   branchZone.name = 'lantern-branch-zone';
+   // a part still under the branch was not merged (a bucket of one, or not in world space) and draws as built
+@@ -319,7 +309,6 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
+   consolidateStaticMeshes(branchZone);
+   branchZone.visible = false;
+   group.add(branchZone);
+->>>>>>> d86a1767 (exp-ruins README: the water stair's 1.18 m sole reading located and fixed (e56a4c0f; its worst sole now a 15.5 cm float, no boot corner below the ground); walk, probes and camcheck re-run on e56a4c0f's build (2b15f687 merged: paths and cameras frame for frame as before, 80/80 probes); #43 kept at 3 with the floats left named; total 158/200, NOT READY)
+   const distantDraws = consolidateStaticMeshes(distant.group);
+   group.add(distant.group);
+   draws.before += distantDraws.before;
+@@ -352,7 +341,6 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
+     draws.after += d.after;
+     draws.merged += d.merged;
+   }
+-<<<<<<< 76a55708 (Merge remote-tracking branch 'upstream/agent/fable-cursor-exp-east' into HEAD)
+   // exp-south2: from the bridge head, the bridge, the far bank, the log and the cleft
+   // (util/farBankLocality.ts) the village stands past the south giants' boles or across the gorge,
+   // in the haze (`farBank.nearestVillageM` below): there its structures cast no shadow and its roof
+@@ -517,7 +505,6 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
+     for (const l of eastFarLods) l.set(far);
+   };
+   scopeEastFar(ctx.camera.position);
+-=======
+   // 2026-09-25 (exp-ruins): the village's own drawables — everything outside the four localities'
+   // groups and the lantern branch — are hidden while the camera stands in the waterfall ruins'
+   // zone, where none of them reaches a pixel (util/expansionLocality.ts villageHiddenFromRuins);
+@@ -542,7 +529,6 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
+     branchZone.visible = !show;
+   };
+   showVillage(ctx.camera);
+->>>>>>> d86a1767 (exp-ruins README: the water stair's 1.18 m sole reading located and fixed (e56a4c0f; its worst sole now a 15.5 cm float, no boot corner below the ground); walk, probes and camcheck re-run on e56a4c0f's build (2b15f687 merged: paths and cameras frame for frame as before, 80/80 probes); #43 kept at 3 with the floats left named; total 158/200, NOT READY)
+   /**
+    * The merged buckets' culling bounds (audit, round 20): what three.js frustum-tests each static
+    * draw against — geometry bounding sphere at the identity transform — with its triangle count and
+@@ -554,13 +540,8 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
+     const visit = (root: Object3D, which: 'hero' | 'distant' | 'north' | 'expansion' | 'south' | 'grove' | 'east') => {
+       root.traverse((o) => {
+         const m = o as Mesh;
+-<<<<<<< 76a55708 (Merge remote-tracking branch 'upstream/agent/fable-cursor-exp-east' into HEAD)
+         if (!m.isMesh || farPodSet.has(m)) return;
+-        if (which === 'hero' && (!m.name.startsWith('merged:') || distant.group.getObjectById(m.id) || north.getObjectById(m.id) || expansion.group.getObjectById(m.id) || south.group.getObjectById(m.id) || grove.group.getObjectById(m.id) || east.group.getObjectById(m.id))) return;
+-=======
+-        if (!m.isMesh) return;
+-        if (which === 'hero' && (!m.name.startsWith('merged:') || distant.group.getObjectById(m.id) || north.getObjectById(m.id) || expansion.group.getObjectById(m.id) || south.group.getObjectById(m.id) || grove.group.getObjectById(m.id) || branchZone.getObjectById(m.id))) return;
+->>>>>>> d86a1767 (exp-ruins README: the water stair's 1.18 m sole reading located and fixed (e56a4c0f; its worst sole now a 15.5 cm float, no boot corner below the ground); walk, probes and camcheck re-run on e56a4c0f's build (2b15f687 merged: paths and cameras frame for frame as before, 80/80 probes); #43 kept at 3 with the floats left named; total 158/200, NOT READY)
++        if (which === 'hero' && (!m.name.startsWith('merged:') || distant.group.getObjectById(m.id) || north.getObjectById(m.id) || expansion.group.getObjectById(m.id) || south.group.getObjectById(m.id) || grove.group.getObjectById(m.id) || east.group.getObjectById(m.id) || branchZone.getObjectById(m.id))) return;
+         const g = m.geometry;
+         if (!g.boundingSphere) g.computeBoundingSphere();
+         const s = g.boundingSphere!;
+@@ -695,7 +676,6 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
+     },
+     /** 2026-09-24 (expansion-north): the grove hamlet — trunk house, stilt house, tree hut, gangway, rope walk, nest, yard (expansionNorth.ts); drawn only within `visibleWithinM` of the grove, in the frustum */
+     grove: { ...grove.audit, draws: groveDraws.after, visibleWithinM: GROVE_VISIBLE_M, visible: grove.group.visible },
+-<<<<<<< 76a55708 (Merge remote-tracking branch 'upstream/agent/fable-cursor-exp-east' into HEAD)
+     /** round 56 (exp-east): the east plateau's lane — three houses, the deck, the shop's counter / sign / crates, pod posts, the lookout (east.ts) */
+     east: east.audit(),
+     /** exp-east: the village casters that switch to a shadow proxy beyond every fixed camera's distance (+2 m, ≥ 20 m) — triangles fine / coarse, cell, switch distance */
+@@ -724,13 +704,11 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
+       triangles: r.meshes.reduce((n, m) => n + rangedTriangles(m.geometry), 0),
+       visible: r.meshes.some((m) => m.visible),
+     })),
+-=======
+     /**
+      * 2026-09-25 (exp-ruins): the village's drawables, hidden while the camera stands in the waterfall
+      * ruins' zone; `branchCopies` are the lantern branch's merged parts drawn there in their place
+      */
+     villageFromRuins: { drawables: villageDrawables.length, shown: villageShown, branchCopies: branchZone.children.length, branchCopiesShown: branchZone.visible },
+->>>>>>> d86a1767 (exp-ruins README: the water stair's 1.18 m sole reading located and fixed (e56a4c0f; its worst sole now a 15.5 cm float, no boot corner below the ground); walk, probes and camcheck re-run on e56a4c0f's build (2b15f687 merged: paths and cameras frame for frame as before, 80/80 probes); #43 kept at 3 with the floats left named; total 158/200, NOT READY)
+     logArch: true,
+     /** round 41 (structures-26): the arch's close-scale detail — grid, cushion tufts, rim splinters, skirt, plants */
+     logDetail: log.detail41,
+@@ -821,12 +799,9 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
+       expansion.far.visible = expansion.farVisible(c.camera);
+       south.group.visible = southShown(c.camera);
+       grove.group.visible = grove.visible(c.camera);
+-<<<<<<< 76a55708 (Merge remote-tracking branch 'upstream/agent/fable-cursor-exp-east' into HEAD)
+       setFarBank(c.camera);
+       east.update(c.camera);
+-=======
+       showVillage(c.camera);
+->>>>>>> d86a1767 (exp-ruins README: the water stair's 1.18 m sole reading located and fixed (e56a4c0f; its worst sole now a 15.5 cm float, no boot corner below the ground); walk, probes and camcheck re-run on e56a4c0f's build (2b15f687 merged: paths and cameras frame for frame as before, 80/80 probes); #43 kept at 3 with the floats left named; total 158/200, NOT READY)
+     },
+     onCameraMove(camera) {
+       scopeVillageTufts(camera.position.x, camera.position.z);
+@@ -838,12 +813,9 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
+       expansion.far.visible = expansion.farVisible(camera);
+       south.group.visible = southShown(camera);
+       grove.group.visible = grove.visible(camera);
+-<<<<<<< 76a55708 (Merge remote-tracking branch 'upstream/agent/fable-cursor-exp-east' into HEAD)
+       setFarBank(camera);
+       east.update(camera);
+-=======
+       showVillage(camera);
+->>>>>>> d86a1767 (exp-ruins README: the water stair's 1.18 m sole reading located and fixed (e56a4c0f; its worst sole now a 15.5 cm float, no boot corner below the ground); walk, probes and camcheck re-run on e56a4c0f's build (2b15f687 merged: paths and cameras frame for frame as before, 80/80 probes); #43 kept at 3 with the floats left named; total 158/200, NOT READY)
+     },
+     dispose() {
+       // one-shot: every geometry, material and owned texture is released exactly once, however
+diff --git a/src/world/terrain/expansion2.test.mjs b/src/world/terrain/expansion2.test.mjs
+remerge CONFLICT (content): Merge conflict in src/world/terrain/expansion2.test.mjs
+index e4cac360..897c5207 100644
+--- a/src/world/terrain/expansion2.test.mjs
++++ b/src/world/terrain/expansion2.test.mjs
+@@ -434,14 +434,9 @@ const ruinsNear = (x, z, pad = 0) => {
+   let culled = 0;
+   for (let z = -48; z <= 48; z += 1.0) {
+     for (let x = -48; x <= 48; x += 1.0) {
+-<<<<<<< 76a55708 (Merge remote-tracking branch 'upstream/agent/fable-cursor-exp-east' into HEAD)
+-      if (southNear(x, z)) continue;
+-      // the west expansion's own cull (east lane off: what a rejection loop sees, section 7)
+-      const c = hf.expansionCull(x, z, 0.3, false);
+-=======
+       if (southNear(x, z) || ruinsNear(x, z)) continue;
+-      const c = hf.expansionCull(x, z);
+->>>>>>> d86a1767 (exp-ruins README: the water stair's 1.18 m sole reading located and fixed (e56a4c0f; its worst sole now a 15.5 cm float, no boot corner below the ground); walk, probes and camcheck re-run on e56a4c0f's build (2b15f687 merged: paths and cameras frame for frame as before, 80/80 probes); #43 kept at 3 with the floats left named; total 158/200, NOT READY)
++      // the west expansion's own cull (east lane and ruins off: what a rejection loop sees, section 7)
++      const c = hf.expansionCull(x, z, 0.3, false);
+       if (c) culled++;
+       else kept++;
+       const inBox = x >= EXPANSION_BOX.x0 && x <= EXPANSION_BOX.x1 && z >= EXPANSION_BOX.z0 && z <= EXPANSION_BOX.z1;
+diff --git a/src/world/terrain/heightfield.ts b/src/world/terrain/heightfield.ts
+remerge CONFLICT (content): Merge conflict in src/world/terrain/heightfield.ts
+index d05e487c..e4c8aff1 100644
+--- a/src/world/terrain/heightfield.ts
++++ b/src/world/terrain/heightfield.ts
+@@ -7,11 +7,7 @@
+  * Owner: terrain agent. Interface (`Terrain`) is frozen; implementation may be refined.
+  */
+ import { Vector3 } from 'three';
+-<<<<<<< 76a55708 (Merge remote-tracking branch 'upstream/agent/fable-cursor-exp-east' into HEAD)
+-import { EAST_BOX, eastDeckPlan, eastHouseBlocks, eastShopSpots, eastSteppingStones, EXPANSION, EXPANSION_BOX, EXPANSION_EAST, EXPANSION_SOUTH, EXPANSION_SOUTH_BOXES, EXPANSION_STAIRS, expansionSteppingStones, houseSteppingStones, inExpansionSouth, inSouthDwelling, LAYOUT, southBankFrameVectors, southBridgeFrame, southPathHalfWidth, southPathLine, type StairDef } from '../layout';
+-=======
+-import { EXPANSION, EXPANSION_BOX, EXPANSION_SOUTH, EXPANSION_SOUTH_BOXES, EXPANSION_STAIRS, LAYOUT, expansionSteppingStones, houseSteppingStones, inExpansionRuins, inExpansionSouth, southBankFrameVectors, southBridgeFrame, southPathHalfWidth, southPathLine, type StairDef } from '../layout';
+->>>>>>> d86a1767 (exp-ruins README: the water stair's 1.18 m sole reading located and fixed (e56a4c0f; its worst sole now a 15.5 cm float, no boot corner below the ground); walk, probes and camcheck re-run on e56a4c0f's build (2b15f687 merged: paths and cameras frame for frame as before, 80/80 probes); #43 kept at 3 with the floats left named; total 158/200, NOT READY)
++import { EAST_BOX, eastDeckPlan, eastHouseBlocks, eastShopSpots, eastSteppingStones, EXPANSION, EXPANSION_BOX, EXPANSION_EAST, EXPANSION_SOUTH, EXPANSION_SOUTH_BOXES, EXPANSION_STAIRS, expansionSteppingStones, houseSteppingStones, inExpansionRuins, inExpansionSouth, inSouthDwelling, LAYOUT, southBankFrameVectors, southBridgeFrame, southPathHalfWidth, southPathLine, type StairDef } from '../layout';
+ import { WORLD } from '../config';
+ import { Noise2D, smoothstep, clamp, lerp } from '../util/noise';
+ import { BERM_BELOW_AXIS, bankHeight, bridgeDeckY, bridgeLocal, ravineProfile, tunnelBerm, tunnelCarve, tunnelFootprint, tunnelLocal } from './south';
+@@ -1504,15 +1500,11 @@ export function southRouteSurface(x: number, z: number): number {
+  * cascade (the white-barks feed the understory and mid samplers): there a new true re-rolls
+  * every later draw.
+  */
+-<<<<<<< 76a55708 (Merge remote-tracking branch 'upstream/agent/fable-cursor-exp-east' into HEAD)
+-export function expansionCull(x: number, z: number, lift = 0.3, east = true): boolean {
+-=======
+-export function expansionCull(x: number, z: number, lift = 0.3, withRuins = true): boolean {
+-  // round 57: the ruins trail and site (`ruinsCull`). `withRuins` false: the rules as they stood
+-  // before round 57 — for a test INSIDE a sampling loop (trees' understory), which filters the
+-  // ruins afterwards instead so no later draw moves
+-  if (withRuins && ruinsCull(x, z, lift)) return true;
+->>>>>>> d86a1767 (exp-ruins README: the water stair's 1.18 m sole reading located and fixed (e56a4c0f; its worst sole now a 15.5 cm float, no boot corner below the ground); walk, probes and camcheck re-run on e56a4c0f's build (2b15f687 merged: paths and cameras frame for frame as before, 80/80 probes); #43 kept at 3 with the floats left named; total 158/200, NOT READY)
++export function expansionCull(x: number, z: number, lift = 0.3, all = true): boolean {
++  // rounds 56/57 (merged as in fable-4's e09a2c29): `all` false — the rules as they stood before the
++  // east lane and the ruins — for a test INSIDE a sampling loop (trees' understory), which filters the
++  // lane and the ruins afterwards instead so no later draw moves
++  if (all && ruinsCull(x, z, lift)) return true;
+   // round 56: the south exit (`EXPANSION_SOUTH_BOXES`) — its paving, the log / sills / posts, and
+   // wherever its live ground left the legacy ground (the ravine, the mound, the carve)
+   // (an instance left FLOATING over lowered ground reads worse than one sunk a little: 4 cm down
+@@ -1537,7 +1529,7 @@ export function expansionCull(x: number, z: number, lift = 0.3, withRuins = true
+     const dh = getTerrain().height(x, z) - getLegacyTerrain().height(x, z);
+     if (dh < -0.04 || dh > lift) return true;
+   }
+-  return westExpansionCull(x, z, lift, east);
++  return westExpansionCull(x, z, lift, all);
+ }
+ 
+ /**
+diff --git a/src/world/trees/index.ts b/src/world/trees/index.ts
+remerge CONFLICT (content): Merge conflict in src/world/trees/index.ts
+index c1ba9a6b..960a50e4 100644
+--- a/src/world/trees/index.ts
++++ b/src/world/trees/index.ts
+@@ -29,12 +29,8 @@ import { authoredWhiteBarks, createWhiteBarkRoots, createWhiteBarkTree, whiteBar
+ import { createUnderstoryTree, understoryParams, type UnderstoryParams } from './understory';
+ import { placeWhiteBark, treeGroundBlocked, viewProjector, type WhiteBarkPlacement } from './placement';
+ import { columnParams, createColumnTree, emergentParams, hutHostParams, type ColumnAsset, type ColumnParams } from './column';
+-<<<<<<< 76a55708 (Merge remote-tracking branch 'upstream/agent/fable-cursor-exp-east' into HEAD)
+-import { expansionCull, getTerrain, southFooting, southRouteSurface, westExpansionCull, type Terrain, type TerrainView } from '../terrain/heightfield';
+-import { eastCardCrowds, eastTreeCrowds, eastUnderstoryCull } from '../util/eastLane';
+-=======
+ import { expansionCull, getTerrain, ruinsTrunkCull, southFooting, southRouteSurface, westExpansionCull, type Terrain, type TerrainView } from '../terrain/heightfield';
+->>>>>>> d86a1767 (exp-ruins README: the water stair's 1.18 m sole reading located and fixed (e56a4c0f; its worst sole now a 15.5 cm float, no boot corner below the ground); walk, probes and camcheck re-run on e56a4c0f's build (2b15f687 merged: paths and cameras frame for frame as before, 80/80 probes); #43 kept at 3 with the floats left named; total 158/200, NOT READY)
++import { eastCardCrowds, eastTreeCrowds, eastUnderstoryCull } from '../util/eastLane';
+ import { smoothstep } from '../util/noise';
+ import { casterSpheres, expansionVisible, type Caster } from '../util/expansionLocality';
+ import { EXPANSION, EXPANSION_RUINS_BOXES, EXPANSION_SOUTH, inExpansionSouth, ruinsTrailLine, southPathLine } from '../layout';
+@@ -2796,14 +2792,10 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
+    * post-filter over the sampled list, so no other stem moves (a rule inside the loop shifts every
+    * later draw).
+    */
+-<<<<<<< 76a55708 (Merge remote-tracking branch 'upstream/agent/fable-cursor-exp-east' into HEAD)
+   // (the east lane's discs, trunks and lookout clear the same way — util/eastLane.ts)
+-  const understoryKept = understoryPlacements.filter((p) => understoryPathDistance(p.x, p.z) >= UNDERSTORY_WALK_CLEAR_M && !eastUnderstoryCull(p.x, p.z));
+-=======
+   const understoryKept = understoryPlacements.filter(
+-    (p) => understoryPathDistance(p.x, p.z) >= UNDERSTORY_WALK_CLEAR_M && !ruinsTrunkCull(p.x, p.z, understory[p.variant].params.trunkRadius * p.scale + RUINS_TRUNK_MARGIN_M),
++    (p) => understoryPathDistance(p.x, p.z) >= UNDERSTORY_WALK_CLEAR_M && !eastUnderstoryCull(p.x, p.z) && !ruinsTrunkCull(p.x, p.z, understory[p.variant].params.trunkRadius * p.scale + RUINS_TRUNK_MARGIN_M),
+   );
+->>>>>>> d86a1767 (exp-ruins README: the water stair's 1.18 m sole reading located and fixed (e56a4c0f; its worst sole now a 15.5 cm float, no boot corner below the ground); walk, probes and camcheck re-run on e56a4c0f's build (2b15f687 merged: paths and cameras frame for frame as before, 80/80 probes); #43 kept at 3 with the floats left named; total 158/200, NOT READY)
+   understoryPlacements.length = 0;
+   understoryPlacements.push(...understoryKept);
+   for (const p of understoryPlacements) seatFamily(understory, p, p.variant);
+@@ -4004,7 +3996,6 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
+   // round 56: the south route keeps the cards MID_SOUTH_WALK_MIN_M off its line, and the south exit's
+   // ground seats or drops a mid bole the way it does a white-bark (`southFooting`)
+   const midSpec0 = distantVariants.length - MID_SPECS.length;
+-<<<<<<< 76a55708 (Merge remote-tracking branch 'upstream/agent/fable-cursor-exp-east' into HEAD)
+   // the east lane's houses and discs clear the crowns that would crowd them (util/eastLane.ts)
+   const midSpec = (p: DistantPlacement) => MID_SPECS[Math.max(0, Math.min(MID_SPECS.length - 1, p.variant - midSpec0))];
+   // the east lane is a walk line like the three above (eastCardCrowds): its card crowns keep
+@@ -4023,7 +4014,7 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
+     const s = midSpec(p);
+     const h = s.height * p.scale;
+     return eastTreeCrowds(p.x, p.z, h, s.crownR, s.crownY, MID_TRUNK_R) || eastCardCrowds(p.x, p.z, h, s.crownR, s.crownY, p.y, MID_WALK_MIN_M, sunDir, heroCameras);
+-=======
++  };
+   /** round 57: the card trees kept off the ruins' walk (`ruinsCardCull`), and those left standing in a hero frame */
+   const ruinsCards = { mid: 0, distant: 0, heroKept: 0, trailM: MID_WALK_MIN_M, siteM: RUINS_CARD_CLEAR_M };
+   // the hero cameras' frusta a little wider than the captures (the rocks' near-LOD test) against a
+@@ -4047,20 +4038,15 @@ export async function create(ctx: WorldContext): Promise<WorldSystem> {
+     if (!heroFramesCard(p)) return true;
+     ruinsCards.heroKept++;
+     return false;
+->>>>>>> d86a1767 (exp-ruins README: the water stair's 1.18 m sole reading located and fixed (e56a4c0f; its worst sole now a 15.5 cm float, no boot corner below the ground); walk, probes and camcheck re-run on e56a4c0f's build (2b15f687 merged: paths and cameras frame for frame as before, 80/80 probes); #43 kept at 3 with the floats left named; total 158/200, NOT READY)
+   };
+   /** the mid boles standing on the south exit's live ground, for the base-gap audit */
+   const midLive = new Set<(typeof midSampled)[number]>();
+   const midPlacements = midSampled.filter((p) => {
+-<<<<<<< 76a55708 (Merge remote-tracking branch 'upstream/agent/fable-cursor-exp-east' into HEAD)
+     if (nearWalk(p.x, p.z) || southWalkDistance(p.x, p.z) < MID_SOUTH_WALK_MIN_M || eastCrowded(p)) return false;
+-=======
+-    if (nearWalk(p.x, p.z) || southWalkDistance(p.x, p.z) < MID_SOUTH_WALK_MIN_M) return false;
+     if (ruinsCardDrop(p)) {
+       ruinsCards.mid++;
+       return false;
+     }
+->>>>>>> d86a1767 (exp-ruins README: the water stair's 1.18 m sole reading located and fixed (e56a4c0f; its worst sole now a 15.5 cm float, no boot corner below the ground); walk, probes and camcheck re-run on e56a4c0f's build (2b15f687 merged: paths and cameras frame for frame as before, 80/80 probes); #43 kept at 3 with the floats left named; total 158/200, NOT READY)
+     const trunkR = MID_TRUNK_R * (MID_SPECS[p.variant - midSpec0]?.height ?? 12) * p.scale;
+     const south = southFooting(p.x, p.z, SOUTH_TRUNK_REACH_M, trunkR + SOUTH_LIP_MARGIN_M);
+     if (south === null) return !expansionCull(p.x, p.z) && !ruinsTrunkCull(p.x, p.z, trunkR + RUINS_TRUNK_MARGIN_M);
+diff --git a/src/world/vegetation/expansion.ts b/src/world/vegetation/expansion.ts
+remerge CONFLICT (content): Merge conflict in src/world/vegetation/expansion.ts
+index a1391d6b..82aca713 100644
+--- a/src/world/vegetation/expansion.ts
++++ b/src/world/vegetation/expansion.ts
+@@ -31,11 +31,7 @@
+  */
+ import { Group, Sphere, Vector3, type Material } from 'three';
+ import type { BufferGeometry } from 'three';
+-<<<<<<< 76a55708 (Merge remote-tracking branch 'upstream/agent/fable-cursor-exp-east' into HEAD)
+-import { EAST_BOX, EXPANSION, EXPANSION_BOX, EXPANSION_NPC_SPOTS, EXPANSION_ROPE_FENCES, EXPANSION_SOUTH_BOXES, EXPANSION_STAIRS, expansionSteppingStones, southBankFrameVectors, southBankPoint } from '../layout';
+-=======
+-import { EXPANSION, EXPANSION_BOX, EXPANSION_NPC_SPOTS, EXPANSION_ROPE_FENCES, EXPANSION_RUINS_BOXES, EXPANSION_SOUTH_BOXES, EXPANSION_STAIRS, expansionSteppingStones, southBankFrameVectors, southBankPoint } from '../layout';
+->>>>>>> d86a1767 (exp-ruins README: the water stair's 1.18 m sole reading located and fixed (e56a4c0f; its worst sole now a 15.5 cm float, no boot corner below the ground); walk, probes and camcheck re-run on e56a4c0f's build (2b15f687 merged: paths and cameras frame for frame as before, 80/80 probes); #43 kept at 3 with the floats left named; total 158/200, NOT READY)
++import { EAST_BOX, EXPANSION, EXPANSION_BOX, EXPANSION_NPC_SPOTS, EXPANSION_ROPE_FENCES, EXPANSION_RUINS_BOXES, EXPANSION_SOUTH_BOXES, EXPANSION_STAIRS, expansionSteppingStones, southBankFrameVectors, southBankPoint } from '../layout';
+ import type { WorldContext } from '../system';
+ import { expansionCull, getTerrain, type Terrain } from '../terrain/heightfield';
+ import { clamp, smoothstep } from '../util/noise';
+@@ -51,17 +47,10 @@ const KNOLL_BOX = (() => {
+   return { x0: hx - r, x1: hx + r, z0: hz - r, z1: hz + r };
+ })();
+ 
+-<<<<<<< 76a55708 (Merge remote-tracking branch 'upstream/agent/fable-cursor-exp-east' into HEAD)
+-/** true when the world box [x0, z0] … [x1, z1] overlaps the expansion box, the knoll's, one of round 56's south boxes or the east lane's — where `expansionCull` can be true */
++/** true when the world box [x0, z0] … [x1, z1] overlaps the expansion box, the knoll's, one of round 56's south boxes, the east lane's or round 57's ruins boxes — where `expansionCull` can be true */
+ export function tileMeetsExpansion(x0: number, z0: number, x1: number, z1: number): boolean {
+   const meets = (b: { x0: number; x1: number; z0: number; z1: number }) => x1 >= b.x0 && x0 <= b.x1 && z1 >= b.z0 && z0 <= b.z1;
+-  return meets(EXPANSION_BOX) || meets(KNOLL_BOX) || EXPANSION_SOUTH_BOXES.some(meets) || meets(EAST_BOX);
+-=======
+-/** true when the world box [x0, z0] … [x1, z1] overlaps the expansion box, the knoll's, one of round 56's south boxes or round 57's ruins boxes — where `expansionCull` can be true */
+-export function tileMeetsExpansion(x0: number, z0: number, x1: number, z1: number): boolean {
+-  const meets = (b: { x0: number; x1: number; z0: number; z1: number }) => x1 >= b.x0 && x0 <= b.x1 && z1 >= b.z0 && z0 <= b.z1;
+-  return meets(EXPANSION_BOX) || meets(KNOLL_BOX) || EXPANSION_SOUTH_BOXES.some(meets) || EXPANSION_RUINS_BOXES.some(meets);
+->>>>>>> d86a1767 (exp-ruins README: the water stair's 1.18 m sole reading located and fixed (e56a4c0f; its worst sole now a 15.5 cm float, no boot corner below the ground); walk, probes and camcheck re-run on e56a4c0f's build (2b15f687 merged: paths and cameras frame for frame as before, 80/80 probes); #43 kept at 3 with the floats left named; total 158/200, NOT READY)
++  return meets(EXPANSION_BOX) || meets(KNOLL_BOX) || EXPANSION_SOUTH_BOXES.some(meets) || meets(EAST_BOX) || EXPANSION_RUINS_BOXES.some(meets);
+ }
+ 
+ /** true where a legacy-placed instance at (x, z) stands in the expansion (heightfield.ts `expansionCull`) */
