@@ -34,17 +34,52 @@ function loadTs(file) {
 }
 
 const here = path.dirname(new URL(import.meta.url).pathname);
-const { MASTER_TRIM_DB, MASTER_LEVEL, SFX_MAKEUP_DB, STEP_CUT_DB, SFX_TRIM } = loadTs(path.join(here, 'graph.ts'));
+const { MASTER_TRIM_DB, MASTER_LEVEL, SFX_PAD_DB, SFX_TRIM } = loadTs(path.join(here, 'graph.ts'));
 
 /**
- * The loudest true peak the game has been measured to make, in dBFS before the trim. Two takes
- * agree on it to a tenth of a decibel — thirteen minutes of ordinary play, and a deliberate worst
- * case of running and jumping under the lantern bough. It is stable because the sfx bus is
- * compressed, so stacking events cannot get past it. **Re-measure this before raising the trim.**
+ * The loudest true peak the game has been measured to make, in dBFS before the trim.
+ *
+ * **On the rope bridge.** This figure used to be the lantern bough's, because that is where the
+ * loudest moment was when it was first taken: the hardest surface, the fastest step rate and the
+ * densest cluster of pod flames in the world. It is not there any more. `buses.gorge` gave the
+ * ravine its own convolver, so a boot over the cut returns through TWO spaces instead of one, and
+ * the same deliberate worst case — running and jumping continuously with the score playing —
+ * measures **1.1 dB louder mid-span than under the bough** (`art/audio/2026-09-26-ceiling/`):
+ *
+ *     the bridge over the ravine   −16.6 dBFS    ← this number
+ *     the lantern bough            −17.7
+ *     inside the log arch's bore   −17.7
+ *     inside the west house        −18.7
+ *
+ * Nothing clips at any of them and the guard below passes at all four, but the number was 0.1 dB
+ * optimistic until this was measured — right by accident, because the bough's compressor-era
+ * −16.7 happened to sit just under the bridge's real figure.
+ *
+ * **Re-measure this whenever a space is added**, which is what the last test in this file is for.
+ * It used to say the figure was stable *because* the sfx bus was compressed, "so stacking events
+ * cannot get past it" — and the compressor is gone (it was worth 0.4 dB of that stability and
+ * cost 2.4 dB of the difference between a walk and a run, `art/audio/2026-09-26-pad/`). Nothing
+ * limits this graph. What keeps the figure honest is that it is measured, guarded, and pinned to
+ * the shape of the graph it was measured on.
+ *
+ * **It is the loudest of several takes, not one take** (`art/audio/2026-09-27-q/`). `worstcase.mjs`
+ * records the LIVE graph, so it repeats to about ±0.85 dB, and every figure above was a single
+ * take quoted to a tenth. Three takes at the bridge on each side of that change ran
+ *
+ *     before   −7.9  −8.4  −6.7 dBFS after the trim     mean −7.67, range 1.7
+ *     after    −6.9  −6.8  −8.3                         mean −7.33, range 1.5
+ *
+ * so the loudest is −6.7 − 9 = **−15.7 before the trim**, and the −16.6 pinned here was 0.9 dB
+ * optimistic on the build it was taken from. The bridge is still the place — three takes under the
+ * bough ran −9.1, −10.1, −10.1, which does not overlap the bridge's range at all — but it leads by
+ * 2.4 dB rather than the 1.1 that was published, and the old figure got the right answer from a
+ * margin that happened to be wider than its own error bar.
  */
-const WORST_CASE_PEAK_DBFS = -16.7;
+const WORST_CASE_PEAK_DBFS = -15.7;
 /** what must still be free above the worst case after the trim, for sources nobody has measured */
 const REQUIRED_HEADROOM_DB = 6;
+/** how many spaces return into the master — see the last test for why the count is a guard */
+const RETURNS_MEASURED_AGAINST = 3;
 
 test('the trim cannot push the loudest moment the game makes into the ceiling', () => {
   const peak = WORST_CASE_PEAK_DBFS + MASTER_TRIM_DB;
@@ -77,63 +112,84 @@ test('the trim is a gain and nothing else: it moves no ratio in the mix', () => 
 
 /**
  * How far the step rate stands over the music's beat in the mix's envelope at a run, against the
- * cut on the sfx bus. Priced exactly from rendered takes rather than modelled: the trim is a plain
+ * pad on the sfx bus. Priced exactly from rendered takes rather than modelled: the pad is a plain
  * gain on one linear part of the mix, so with the dry steps on disk every row is arithmetic
- * (`art/audio/2026-09-26-release/price.py`). A walk is under the music from a 1 dB cut and
- * saturates at −2.0 dB; these are the gait that is still over it.
+ * (`art/audio/2026-09-26-pad/pad.py`). A walk is under the music from a 2 dB pad and saturates at
+ * −2.1 dB; these rows are the gait that is still over it.
  */
 const STEP_OVER_BEAT_AT_RUN = [
-  [0, 4.4],
-  [2, 1.4],
-  [3, -0.2],
-  [4, -1.8],
-  [6, -5.3],
+  [0, 7.6],
+  [2, 4.8],
+  [4, 1.9],
+  [6, -1.2],
+  [8, -4.5],
+  [10, -8.1],
 ];
-/** where a walk's own step rate stops falling, and so the best margin any cut can buy */
-const WALK_FLOOR_DB = -2.0;
+/** where a walk's own step rate stops falling, and so the best margin any pad can buy */
+const WALK_FLOOR_DB = -2.1;
 /** the table is printed to a tenth; a run counts as having reached the walk's floor within this */
 const REACHED_DB = 0.5;
-/** the trim already sat 2 dB under the makeup when the table was measured, so its rows start there */
-const TABLE_BASE_DB = 2;
 
-/** the run's margin at a cut, straight-lined between the two rows that bracket it */
-function overBeatAt(cut) {
+/** the run's margin at a pad, straight-lined between the two rows that bracket it */
+function overBeatAt(pad) {
   const rows = STEP_OVER_BEAT_AT_RUN;
-  if (cut <= rows[0][0]) return rows[0][1];
+  if (pad <= rows[0][0]) return rows[0][1];
   for (let i = 1; i < rows.length; i++) {
     const [c0, v0] = rows[i - 1];
     const [c1, v1] = rows[i];
-    if (cut <= c1) return v0 + ((v1 - v0) * (cut - c0)) / (c1 - c0);
+    if (pad <= c1) return v0 + ((v1 - v0) * (pad - c0)) / (c1 - c0);
   }
   return rows[rows.length - 1][1];
 }
 
-test('the step cut is big enough that the music, not the player, is the strongest rhythm', () => {
-  const at = (cut) => overBeatAt(cut - TABLE_BASE_DB);
-  const here = at(STEP_CUT_DB);
-  assert.ok(here <= WALK_FLOOR_DB + REACHED_DB, `a ${STEP_CUT_DB} dB cut leaves a run's step rate ${here.toFixed(1)} dB over the music's beat, short of the ${WALK_FLOOR_DB} dB a walk gets`);
+test('the pad is big enough that the music, not the player, is the strongest rhythm', () => {
+  const at = overBeatAt(SFX_PAD_DB);
+  assert.ok(at <= WALK_FLOOR_DB + REACHED_DB, `a ${SFX_PAD_DB} dB pad leaves a run's step rate ${at.toFixed(1)} dB over the music's beat, short of the ${WALK_FLOOR_DB} dB a walk gets`);
 });
 
-test('and no bigger: the cut is the smallest whole decibel that does it', () => {
+test('and no bigger: the pad is the smallest whole decibel that does it', () => {
   // The other way to get this wrong is to keep taking level off the player's own footsteps because
-  // the number keeps improving. It is the smallest sufficient cut or it is a taste.
-  const at = (cut) => overBeatAt(cut - TABLE_BASE_DB);
-  const less = at(STEP_CUT_DB - 1);
-  assert.ok(less > WALK_FLOOR_DB + REACHED_DB, `${STEP_CUT_DB - 1} dB already reaches ${less.toFixed(1)} dB, so ${STEP_CUT_DB} takes a decibel off the player's steps for nothing`);
+  // the number keeps improving. It is the smallest sufficient pad or it is a taste.
+  const less = overBeatAt(SFX_PAD_DB - 1);
+  assert.ok(less > WALK_FLOOR_DB + REACHED_DB, `${SFX_PAD_DB - 1} dB already reaches ${less.toFixed(1)} dB, so ${SFX_PAD_DB} takes a decibel off the player's steps for nothing`);
 });
 
-test('the cut lives after the compressor, where decibels survive', () => {
-  // Every step the game makes is in full four-to-one compression, so the same cut taken off the
-  // step designs instead comes back out of the ratio. It only counts downstream of the node.
+test('the sfx bus carries a gain and nothing else', () => {
+  // A DynamicsCompressorNode lived here for two days. It put every step in full four-to-one, its
+  // release was worth 0.4 dB across a factor of sixteen, and it charged 2.4 dB of the difference
+  // between a walk and a run. A gain does the same job; anything with a time constant on this bus
+  // has to earn its keep against that measurement first.
   const graph = readFileSync(path.join(here, 'graph.ts'), 'utf8');
-  assert.match(graph, /sfx\.connect\(sfxLimit\)\.connect\(sfxTrim\)\.connect\(master\)/, 'the trim belongs between the step compressor and the master');
-  assert.ok(Math.abs(SFX_TRIM - Math.pow(10, -(SFX_MAKEUP_DB + STEP_CUT_DB) / 20)) < 1e-12, 'the trim is the makeup it takes back plus the cut it adds, and nothing else');
+  assert.match(graph, /sfx\.connect\(sfxTrim\)\.connect\(master\)/, 'the pad belongs between the sfx bus and the master');
+  assert.equal(/createDynamicsCompressor/.test(graph), false, 'nothing on this bus may squeeze the steps without re-measuring what that costs the gait');
+  assert.ok(Math.abs(SFX_TRIM - Math.pow(10, -SFX_PAD_DB / 20)) < 1e-12, 'the pad is the decibel figure it claims to be');
 });
 
-test('the cut cannot spend headroom, because it only ever takes level away', () => {
+test('the pad cannot spend headroom, because it only ever takes level away', () => {
   // The worst case the master is staged against is a run-and-jump take, which is the sfx bus at
-  // full tilt — so an attenuation on that bus can only lower it. The constant above stays a valid
-  // ceiling; it is now a conservative one.
-  assert.ok(STEP_CUT_DB >= 2, 'the sfx bus is attenuated, so the measured worst case remains an upper bound');
-  assert.ok(SFX_TRIM < 1, 'SFX_TRIM must attenuate; a trim over unity would invalidate the worst case');
+  // full tilt — so an attenuation on that bus can only lower it. Measured at this pad the worst
+  // case is 17.9 dB under full scale before the trim, inside the constant above.
+  assert.ok(SFX_TRIM < 1, 'SFX_TRIM must attenuate; a pad over unity would invalidate the worst case');
+  assert.ok(SFX_PAD_DB > 0, 'and it must be a pad, not a boost');
+});
+
+test('the worst case is pinned to the graph it was measured on', () => {
+  // A peak measurement is a measurement OF A PARTICULAR GRAPH, and this one has been overtaken
+  // once already: the figure above was the lantern bough's until `buses.gorge` gave the ravine
+  // its own convolver, and a boot over the cut started returning through two spaces instead of
+  // one. The loudest moment in the game moved to the bridge and nobody noticed for a day, because
+  // nothing in the code knew the measurement had a shape attached to it.
+  //
+  // Every space that returns into the master can add to a peak, so the count is the shape. Add a
+  // fourth and this fails, which is the only way a re-measure gets asked for at the moment it is
+  // needed rather than the next time somebody happens to wonder.
+  const src = readFileSync(path.join(here, 'graph.ts'), 'utf8');
+  const returns = [...src.matchAll(/^\s*(\w*Return)\.connect\(master\);/gm)].map((m) => m[1]);
+  assert.equal(
+    returns.length,
+    RETURNS_MEASURED_AGAINST,
+    `${returns.length} spaces return into the master (${returns.join(', ')}) and the worst case was measured against ${RETURNS_MEASURED_AGAINST}. Re-run art/audio/2026-09-24-level/worstcase.mjs in every enclosed place and take the loudest.`,
+  );
+  // and the pad is still the only thing between the sfx bus and the master, so a peak is a sum
+  assert.doesNotMatch(src, /createDynamicsCompressor/, 'something limits the bus again — the worst case is no longer a sum and this constant means something else');
 });
