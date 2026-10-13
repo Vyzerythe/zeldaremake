@@ -26,6 +26,8 @@ from upstream: the north/south expansions landed with open reviewer rubric findi
 (south ≈146/200 against a 170 bar),
 squad2's commits after 2026-09-26 are author-measured only, and the `stairs1-base` look spot
 renders near-black because the follow camera does not clear a close occluder.
+What was taken, left optional or skipped, and why:
+[fork integration record](docs/FORK_INTEGRATION_2026-10-13.md).
 
 ## Latest integrated milestone
 On 2026-09-23 at 20:34 UTC, PR #33 published the reviewed cinematic checkpoint on
